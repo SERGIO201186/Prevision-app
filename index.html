@@ -220,10 +220,23 @@ self.addEventListener('message', function(event) {
                 <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold py-3 rounded-lg transition duration-200">
                     Iniciar Sesión
                 </button>
-                
+
+                <!-- Botón de instalación PWA — visible solo cuando el navegador lo permite -->
+                <button type="button" id="btn-install-pwa-login" onclick="triggerPwaInstall()"
+                    class="hidden w-full flex items-center justify-center gap-2 border border-emerald-600/50 text-emerald-400 hover:bg-emerald-950/40 text-sm font-semibold py-2.5 rounded-lg transition duration-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Instalar App en este dispositivo
+                </button>
+
                 <!-- Acceso de emergencia: secreto, solo tecleando 5 veces en el logo FH se activa -->
                 <div id="hidden-emergency-counter" style="display:none"></div>
             </form>
+
+            <!-- Indicador offline en login -->
+            <div id="login-offline-badge" class="hidden mt-4 flex items-center justify-center gap-2 text-[11px] text-amber-400">
+                <span class="h-2 w-2 rounded-full bg-amber-500"></span>
+                Sin Internet — puedes iniciar sesión igual
+            </div>
         </div>
     </div>
 
@@ -274,6 +287,10 @@ self.addEventListener('message', function(event) {
             </div>
         </nav>
         
+        <!-- Versión de la App -->
+        <div class="px-4 pt-3 pb-1">
+            <span class="text-[10px] text-slate-600 font-mono">v7.1.1 · FH Huerta</span>
+        </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
             <div id="offline-banner" class="hidden items-center gap-2 text-[11px] bg-amber-950/60 border border-amber-700/40 rounded-lg px-2 py-1.5 text-amber-400">
@@ -1370,11 +1387,15 @@ self.addEventListener('message', function(event) {
 
         window.addEventListener('offline', function() {
             updateOfflineStatus();
+            const badge = document.getElementById('login-offline-badge');
+            if (badge) { badge.classList.remove('hidden'); badge.classList.add('flex'); }
             showToast('⚡ Sin Internet — Los cambios se guardan localmente y se sincronizarán al reconectar.', 'error');
         });
 
         window.addEventListener('online', function() {
             updateOfflineStatus();
+            const badge = document.getElementById('login-offline-badge');
+            if (badge) { badge.classList.add('hidden'); badge.classList.remove('flex'); }
             const banner = document.getElementById('online-banner');
             if (banner) {
                 banner.classList.remove('hidden');
@@ -1425,17 +1446,20 @@ self.addEventListener('message', function(event) {
         window.addEventListener('beforeinstallprompt', function(e) {
             e.preventDefault();
             _pwaInstallPrompt = e;
-            // Mostrar botón de instalación en la sidebar
+            // Mostrar botón en sidebar (post-login)
             const installBtn = document.getElementById('btn-install-pwa');
-            if (installBtn) {
-                installBtn.classList.remove('hidden');
-            }
+            if (installBtn) installBtn.classList.remove('hidden');
+            // Mostrar botón en pantalla de login
+            const loginBtn = document.getElementById('btn-install-pwa-login');
+            if (loginBtn) loginBtn.classList.remove('hidden');
         });
 
         window.addEventListener('appinstalled', function() {
             _pwaInstallPrompt = null;
             const installBtn = document.getElementById('btn-install-pwa');
             if (installBtn) installBtn.classList.add('hidden');
+            const loginBtn = document.getElementById('btn-install-pwa-login');
+            if (loginBtn) loginBtn.classList.add('hidden');
             showToast('✅ App instalada. Ahora puedes usarla sin Internet.', 'success');
         });
 
@@ -1675,7 +1699,8 @@ function doPost(e) {
         // Firma comprimida (~10k chars) — cabe en el límite de 50k de Sheets
         var rowData = [c.folio,c.nombre,c.identificacion,c.telefono,c.correo,c.fechaRegistro,
           c.nombrePaquete,c.precioTotal,c.enganche,c.montoPagado,c.mensualidades,c.frecuenciaPago,
-          c.firmaBase64||"",c.observaciones||"",c.asesor||"",b1,t1,b2,t2,b3,t3];
+          "",c.observaciones||"",c.asesor||"",b1,t1,b2,t2,b3,t3];
+        // Nota: col 13 (FIRMA_BASE64) siempre se manda vacía — la firma solo vive en localStorage.
         if (foundRow !== -1) {
           contractsSheet.getRange(foundRow, 1, 1, rowData.length).setValues([rowData]);
         } else {
@@ -1747,46 +1772,18 @@ function doPost(e) {
             if (syncBtn) { syncBtn.disabled = true; syncBtn.innerText = '⏳ Sincronizando...'; }
             showToast("Subiendo datos a Google Sheets...", "success");
 
-            // ─── MIGRACIÓN DE FIRMAS PESADAS ───
-            // Contratos guardados antes de la compresión pueden tener firmas PNG de ~150k chars.
-            // Las recomprimimos ahora antes de subir para que ninguna supere el límite de Sheets.
-            let firmaMigradas = 0;
-            const LIMITE_CHARS = 42000; // margen seguro bajo el límite de 50k de Sheets
-            for (let i = 0; i < clients.length; i++) {
-                const firma = clients[i].firmaBase64;
-                if (firma && firma.length > LIMITE_CHARS) {
-                    try {
-                        // Crear una imagen temporal, redibujarla comprimida
-                        const compressed = await new Promise((resolve) => {
-                            const img = new Image();
-                            img.onload = function() {
-                                const tmp = document.createElement('canvas');
-                                tmp.width  = 220;
-                                tmp.height = 65;
-                                const tCtx = tmp.getContext('2d');
-                                tCtx.fillStyle = '#ffffff';
-                                tCtx.fillRect(0, 0, 220, 65);
-                                tCtx.drawImage(img, 0, 0, 220, 65);
-                                resolve(tmp.toDataURL('image/jpeg', 0.55));
-                            };
-                            img.onerror = function() { resolve(firma); }; // si falla, dejar original
-                            img.src = firma;
-                        });
-                        if (compressed.length <= LIMITE_CHARS) {
-                            clients[i] = { ...clients[i], firmaBase64: compressed };
-                            firmaMigradas++;
-                        }
-                    } catch(e) { /* no bloquear si falla una firma */ }
-                }
-            }
-            // Si hubo migraciones, guardar localmente la versión comprimida
-            if (firmaMigradas > 0) {
-                localStorage.setItem('huerta_clients', JSON.stringify(clients));
-                showToast(`✓ ${firmaMigradas} firma(s) comprimida(s) para sincronizar`, "success");
-            }
+            // ─── STRIP FIRMAS ANTES DE ENVIAR A SHEETS ───
+            // Las firmas base64 pueden superar el límite de 50k chars de una celda de Google Sheets.
+            // Solución: nunca subir la firma a Sheets — se guarda solo en localStorage de cada dispositivo.
+            // Si un dispositivo nuevo necesita la firma, puede volver a pedirla al titular.
+            const contractsParaSheets = clients.map(function(c) {
+                const copia = Object.assign({}, c);
+                delete copia.firmaBase64; // quitar firma antes de subir
+                return copia;
+            });
 
             const packagePayload = {
-                contracts: clients,
+                contracts: contractsParaSheets,
                 payments: payments,
                 employees: employees
             };
@@ -2894,20 +2891,35 @@ function doPost(e) {
       </div>
     </div>
   </div>
-
-  <script>
-    window.onload = function() { window.print(); setTimeout(function(){ window.close(); }, 1000); };
-  <\/script>
 </body>
 </html>`;
 
-            const printWin = window.open('', '_blank', 'width=850,height=1050');
-            if (!printWin) {
-                showToast('Por favor permite las ventanas emergentes para imprimir.', 'error');
-                return;
+            // ── Imprimir usando iframe oculto (no abre ventana emergente, funciona en PWA) ──
+            let iframe = document.getElementById('_print_iframe');
+            if (!iframe) {
+                iframe = document.createElement('iframe');
+                iframe.id = '_print_iframe';
+                iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0;';
+                document.body.appendChild(iframe);
             }
-            printWin.document.write(htmlContent);
-            printWin.document.close();
+            const iDoc = iframe.contentWindow.document;
+            iDoc.open();
+            iDoc.write(htmlContent);
+            iDoc.close();
+            // Esperar a que cargue la firma (imagen base64) antes de imprimir
+            iframe.onload = function() {
+                setTimeout(function() {
+                    try {
+                        iframe.contentWindow.focus();
+                        iframe.contentWindow.print();
+                    } catch(e) {
+                        // Fallback: ventana emergente si el iframe falla
+                        const w = window.open('', '_blank', 'width=850,height=1050');
+                        if (w) { w.document.write(htmlContent); w.document.close(); }
+                        else { showToast('Permite ventanas emergentes para imprimir.', 'error'); }
+                    }
+                }, 350);
+            };
         }
 
         // --- SISTEMA DE ENVÍO DE MENSAJES VÍA WHATSAPP ---
@@ -3177,6 +3189,11 @@ function doPost(e) {
         window.onload = function() {
             safeCreateIcons();
             checkSession();
+            // Si ya está offline al cargar, mostrar badge en login
+            if (!navigator.onLine) {
+                const badge = document.getElementById('login-offline-badge');
+                if (badge) { badge.classList.remove('hidden'); badge.classList.add('flex'); }
+            }
         };
     </script>
 </body>
