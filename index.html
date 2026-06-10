@@ -1544,46 +1544,23 @@ self.addEventListener('message', function(event) {
         // --- COMPRESIÓN DE FIRMA: reduce de ~150,000 a ~10,000 caracteres ---
         // Redibuja la firma sobre un canvas pequeño (220x65px) y la convierte a JPEG
         // calidad 0.55 — suficiente para identificar la firma, bien bajo el límite de Sheets.
-       function compressSignature(sourceCanvas) {
-    try {
-        const offscreen = document.createElement('canvas');
-        offscreen.width  = 200;  // Un poco más pequeño para mayor seguridad
-        offscreen.height = 60;
-        const offCtx = offscreen.getContext('2d');
-        offCtx.fillStyle = '#ffffff';
-        offCtx.fillRect(0, 0, 200, 60);
-        offCtx.drawImage(sourceCanvas, 0, 0, 200, 60);
-
-        // Intentar con calidad baja primero
-        let result = offscreen.toDataURL('image/jpeg', 0.35);
-
-        // Si aún así supera 40k, reducir más agresivamente
-        if (result.length > 40000) {
-            result = offscreen.toDataURL('image/jpeg', 0.15);
+        function compressSignature(sourceCanvas) {
+            try {
+                const offscreen = document.createElement('canvas');
+                offscreen.width  = 220;
+                offscreen.height = 65;
+                const offCtx = offscreen.getContext('2d');
+                // Fondo blanco (JPEG no soporta transparencia)
+                offCtx.fillStyle = '#ffffff';
+                offCtx.fillRect(0, 0, 220, 65);
+                // Redibujar la firma escalada
+                offCtx.drawImage(sourceCanvas, 0, 0, 220, 65);
+                return offscreen.toDataURL('image/jpeg', 0.55);
+            } catch(e) {
+                // Si falla la compresión, devolver la original (no bloquear el flujo)
+                return sourceCanvas.toDataURL('image/png');
+            }
         }
-        // Último recurso: canvas aún más pequeño
-        if (result.length > 40000) {
-            const mini = document.createElement('canvas');
-            mini.width = 120; mini.height = 36;
-            mini.getContext('2d').drawImage(offscreen, 0, 0, 120, 36);
-            result = mini.toDataURL('image/jpeg', 0.2);
-        }
-        return result;
-    } catch(e) {
-        // Fallback seguro: canvas pequeño fijo, NUNCA PNG original
-        try {
-            const safe = document.createElement('canvas');
-            safe.width = 120; safe.height = 36;
-            const sCtx = safe.getContext('2d');
-            sCtx.fillStyle = '#ffffff';
-            sCtx.fillRect(0, 0, 120, 36);
-            sCtx.drawImage(sourceCanvas, 0, 0, 120, 36);
-            return safe.toDataURL('image/jpeg', 0.2);
-        } catch(e2) {
-            return ""; // Sin firma antes que romper la sync
-        }
-    }
-}
 
         function clearSignatureCanvas() {
             if (!canvas) return;
