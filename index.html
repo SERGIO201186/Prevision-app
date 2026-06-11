@@ -288,7 +288,7 @@ self.addEventListener('message', function(event) {
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.2.1 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.3.0 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -399,6 +399,8 @@ self.addEventListener('message', function(event) {
                         <button onclick="setClientFilter('vigentes')" id="filter-btn-vigentes" class="px-3 py-2 rounded-lg text-xs font-bold border border-slate-700 text-slate-400 hover:text-slate-200">Vigentes</button>
                         <button onclick="setClientFilter('liquidados')" id="filter-btn-liquidados" class="px-3 py-2 rounded-lg text-xs font-bold border border-slate-700 text-slate-400 hover:text-slate-200">Liquidados</button>
                         <button onclick="setClientFilter('atrasados')" id="filter-btn-atrasados" class="px-3 py-2 rounded-lg text-xs font-bold border border-red-900/50 text-red-400 hover:text-red-300">⚠ Atrasados</button>
+                        <button onclick="setClientFilter('cancelados')" id="filter-btn-cancelados" class="px-3 py-2 rounded-lg text-xs font-bold border border-slate-700 text-slate-500 hover:text-slate-300">Cancelados</button>
+                        <button onclick="setClientFilter('suspendidos')" id="filter-btn-suspendidos" class="px-3 py-2 rounded-lg text-xs font-bold border border-orange-900/50 text-orange-400 hover:text-orange-300">Suspendidos</button>
                     </div>
                 </div>
                 <div id="clients-list-container" class="grid grid-cols-1 gap-4"></div>
@@ -608,6 +610,25 @@ self.addEventListener('message', function(event) {
                         </button>
                     </div>
                     <textarea id="apps-script-box" readonly class="w-full bg-slate-900 border border-slate-850 rounded-lg p-3 text-[10px] text-amber-500 font-mono focus:outline-none no-scrollbar" rows="12"></textarea>
+                </div>
+
+                <!-- Zona de peligro: resetear datos locales -->
+                <div class="bg-red-950/20 border border-red-800/40 rounded-xl p-5 space-y-3">
+                    <div class="flex items-start gap-3">
+                        <i data-lucide="alert-triangle" class="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <h4 class="font-semibold text-red-300 text-sm">Zona de Peligro — Resetear datos locales</h4>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">Elimina todos los contratos, pagos y cola de sincronización guardados en <strong>este dispositivo</strong>. No afecta otros dispositivos ni Google Sheets. Úsalo solo si tienes datos corruptos o quieres empezar desde cero en este celular/computadora.</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <button onclick="resetLocalData('contratos')" class="flex items-center justify-center gap-2 border border-red-700/50 text-red-400 hover:bg-red-950/40 text-xs font-semibold py-2.5 rounded-lg transition">
+                            <i data-lucide="file-x" class="h-3.5 w-3.5"></i> Borrar contratos y pagos locales
+                        </button>
+                        <button onclick="resetLocalData('todo')" class="flex items-center justify-center gap-2 bg-red-900/30 border border-red-700/60 text-red-300 hover:bg-red-900/50 text-xs font-semibold py-2.5 rounded-lg transition">
+                            <i data-lucide="trash-2" class="h-3.5 w-3.5"></i> Resetear TODO (incluye empleados y config)
+                        </button>
+                    </div>
                 </div>
             </section>
         </div>
@@ -1975,6 +1996,9 @@ function doPost(e) {
         // Un contrato está "liquidado" si montoPagado >= precioTotal
         // Está "atrasado" si lleva más de 45 días sin pago y no está liquidado
         function getContractStatus(c) {
+            // Estatus manual tiene prioridad (Cancelado / Suspendido)
+            if (c.estadoManual === 'Cancelado') return 'cancelado';
+            if (c.estadoManual === 'Suspendido') return 'suspendido';
             if (c.montoPagado >= c.precioTotal) return 'liquidado';
             // Calcular días desde el último pago
             const contractPayments = payments.filter(p => p.clienteId === c.folio || p.clienteId === c.id);
@@ -1989,6 +2013,99 @@ function doPost(e) {
             const limitDays = c.frecuenciaPago === 'quincenal' ? 30 : 60;
             if (daysSince > limitDays) return 'atrasado';
             return 'vigente';
+        }
+
+        // Modal de cambio de estatus
+        function changeContractStatus(folio) {
+            const c = clients.find(cl => cl.folio === folio);
+            if (!c) return;
+            const current = c.estadoManual || 'Activo';
+            const opciones = [
+                { val: '', label: '● Activo (automático)',    desc: 'El sistema calcula Vigente / Atrasado / Liquidado según pagos' },
+                { val: 'Suspendido', label: '⏸ Suspendido',  desc: 'Pagos en pausa temporal — no se cuenta como atrasado' },
+                { val: 'Cancelado',  label: '✕ Cancelado',   desc: 'Contrato dado de baja — queda en el historial pero inactivo' },
+            ];
+            const opcionesHTML = opciones.map(o =>
+                `<label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition ${(c.estadoManual || '') === o.val ? 'border-amber-500 bg-amber-950/30' : 'border-slate-700 hover:border-slate-500'}">
+                    <input type="radio" name="nuevo-estado" value="${o.val}" ${(c.estadoManual || '') === o.val ? 'checked' : ''} class="mt-0.5 accent-amber-500">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-200">${o.label}</p>
+                        <p class="text-xs text-slate-500 mt-0.5">${o.desc}</p>
+                    </div>
+                </label>`
+            ).join('');
+
+            // Reusar el modal de historial como contenedor
+            document.getElementById('history-client-subtitle').innerText = c.nombre + ' · ' + c.folio;
+            document.getElementById('history-summary').innerHTML = '';
+            document.getElementById('history-payments-list').innerHTML =
+                `<div class="space-y-2 py-2">${opcionesHTML}</div>
+                 <div class="flex gap-3 mt-4">
+                    <button onclick="applyContractStatus('${folio}')" class="flex-1 bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold py-2.5 rounded-lg text-sm">Guardar Estatus</button>
+                    <button onclick="document.getElementById('client-history-modal').classList.add('hidden')" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg text-sm">Cancelar</button>
+                 </div>`;
+            document.getElementById('history-modal-title').innerText = 'Cambiar Estatus del Contrato';
+            document.getElementById('client-history-modal').classList.remove('hidden');
+        }
+
+        function applyContractStatus(folio) {
+            const selected = document.querySelector('input[name="nuevo-estado"]:checked');
+            if (!selected) return;
+            const idx = clients.findIndex(c => c.folio === folio);
+            if (idx === -1) return;
+            const nuevoEstado = selected.value; // '' = automático, 'Suspendido', 'Cancelado'
+            clients[idx].estadoManual = nuevoEstado || null;
+            clients[idx].estado = nuevoEstado || 'Activo';
+            localStorage.setItem('huerta_clients', JSON.stringify(clients));
+            // Marcar como pendiente de sync
+            if (!pendingSyncClients.includes(folio)) {
+                pendingSyncClients.push(folio);
+                localStorage.setItem('huerta_pending_clients', JSON.stringify(pendingSyncClients));
+            }
+            try { updatePendingBadge(); } catch(e) {}
+            document.getElementById('client-history-modal').classList.add('hidden');
+            renderClientsList();
+            updateMetrics();
+            const labels = { '': 'Activo (automático)', 'Suspendido': 'Suspendido', 'Cancelado': 'Cancelado' };
+            showToast('Estatus actualizado: ' + labels[nuevoEstado], 'success');
+        }
+
+        // ── RESET LOCAL DATA ──
+        function resetLocalData(tipo) {
+            const mensajes = {
+                contratos: '¿Seguro que quieres borrar todos los contratos y pagos de ESTE dispositivo?\n\nEsta acción no se puede deshacer.\nLos datos en Google Sheets NO se borran.',
+                todo: '⚠️ ATENCIÓN: Esto borrará TODOS los datos locales incluyendo empleados y configuración.\n\n¿Confirmas que quieres resetear completamente este dispositivo?'
+            };
+            if (!confirm(mensajes[tipo])) return;
+            if (tipo === 'todo' && !confirm('Segunda confirmación requerida.\n¿Estás completamente seguro?')) return;
+
+            if (tipo === 'contratos') {
+                localStorage.removeItem('huerta_clients');
+                localStorage.removeItem('huerta_payments');
+                localStorage.removeItem('huerta_pending_clients');
+                localStorage.removeItem('huerta_pending_payments');
+                clients = [];
+                payments = [];
+                pendingSyncClients = [];
+                pendingSyncPayments = [];
+                showToast('✅ Contratos y pagos locales eliminados. Sincroniza para volver a descargarlos.', 'success');
+            } else {
+                const keysToKeep = ['huerta_session']; // mantener sesión activa
+                Object.keys(localStorage)
+                    .filter(k => k.startsWith('huerta_') && !keysToKeep.includes(k))
+                    .forEach(k => localStorage.removeItem(k));
+                clients = [];
+                payments = [];
+                employees = [];
+                pendingSyncClients = [];
+                pendingSyncPayments = [];
+                pendingSyncEmployees = [];
+                showToast('✅ Todos los datos locales han sido eliminados. La app se recargará.', 'success');
+                setTimeout(() => location.reload(), 2000);
+            }
+            updateMetrics();
+            renderClientsList();
+            try { updatePendingBadge(); } catch(e) {}
         }
 
         function updateMetrics() {
@@ -2081,7 +2198,7 @@ function doPost(e) {
         function renderClientsList() {
             var container = document.getElementById('clients-list-container');
             var query = (document.getElementById('client-search-input').value || '').toLowerCase().trim();
-            var statusMap = { vigentes: 'vigente', liquidados: 'liquidado', atrasados: 'atrasado' };
+            var statusMap = { vigentes: 'vigente', liquidados: 'liquidado', atrasados: 'atrasado', cancelados: 'cancelado', suspendidos: 'suspendido' };
             var targetStatus = statusMap[activeClientFilter] || null;
 
             var filtered = clients.filter(function(c) {
@@ -2103,13 +2220,15 @@ function doPost(e) {
                 var pct = Math.min(100, Math.round((c.montoPagado / c.precioTotal) * 100));
                 var status = getContractStatus(c);
                 var badges = {
-                    liquidado: '<span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/30">\u2713 Liquidado</span>',
-                    vigente:   '<span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-950 text-amber-400 border border-amber-500/30">\u25CF Vigente</span>',
-                    atrasado:  '<span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-950 text-red-400 border border-red-500/30">\u26A0 Atrasado</span>'
+                    liquidado:   '<span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/30">✓ Liquidado</span>',
+                    vigente:     '<span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-950 text-amber-400 border border-amber-500/30">● Vigente</span>',
+                    atrasado:    '<span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-950 text-red-400 border border-red-500/30">⚠ Atrasado</span>',
+                    cancelado:   '<span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-900 text-slate-500 border border-slate-700">✕ Cancelado</span>',
+                    suspendido:  '<span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-orange-950 text-orange-400 border border-orange-500/30">⏸ Suspendido</span>'
                 };
-                var borderColor = status === 'liquidado' ? 'border-emerald-900/40' : status === 'atrasado' ? 'border-red-900/40' : 'border-slate-800';
-                var barColor    = status === 'liquidado' ? 'bg-emerald-500' : status === 'atrasado' ? 'bg-red-500' : 'bg-amber-500';
-                var pendColor   = status === 'atrasado' ? 'text-red-400' : 'text-amber-400';
+                var borderColor = status === 'liquidado' ? 'border-emerald-900/40' : status === 'atrasado' ? 'border-red-900/40' : status === 'cancelado' ? 'border-slate-700 opacity-60' : status === 'suspendido' ? 'border-orange-900/40' : 'border-slate-800';
+                var barColor    = status === 'liquidado' ? 'bg-emerald-500' : status === 'atrasado' ? 'bg-red-500' : status === 'cancelado' ? 'bg-slate-600' : status === 'suspendido' ? 'bg-orange-500' : 'bg-amber-500';
+                var pendColor   = status === 'atrasado' ? 'text-red-400' : status === 'cancelado' ? 'text-slate-500' : 'text-amber-400';
                 return '<div class="bg-slate-950 p-5 rounded-xl border ' + borderColor + ' space-y-3">' +
                     '<div class="flex justify-between items-start gap-2">' +
                         '<div>' +
