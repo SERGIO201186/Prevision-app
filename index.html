@@ -291,7 +291,7 @@ self.addEventListener('message', function(event) {
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.7.0 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.8.0 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -307,7 +307,7 @@ self.addEventListener('message', function(event) {
                 <span class="h-2 w-2 rounded-full bg-red-500 animate-pulse"></span>
                 <span>Sin Configurar Nube</span>
             </div>
-            <div id="pending-sync-badge" class="hidden items-center gap-2 text-[11px] text-amber-400 cursor-pointer" onclick="switchTab('sync')">
+            <div id="pending-sync-badge" class="hidden items-center gap-2 text-[11px] text-amber-400 cursor-pointer" onclick="showPendingSyncDetails()">
                 <span class="h-2 w-2 rounded-full bg-amber-500 flex-shrink-0"></span>
                 <span id="pending-sync-count">0 cambios pendientes</span>
             </div>
@@ -602,6 +602,27 @@ self.addEventListener('message', function(event) {
                             <i data-lucide="refresh-cw" class="h-4 w-4"></i> Sincronizar e Integrar Todo
                         </button>
                     </div>
+                </div>
+
+                <!-- Respaldo de Firmas -->
+                <div class="bg-slate-950 border border-emerald-800/30 rounded-xl p-5 space-y-3">
+                    <div class="flex items-start gap-3">
+                        <i data-lucide="pen-tool" class="h-5 w-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <h4 class="font-semibold text-emerald-300 text-sm">Respaldo de Firmas Digitales</h4>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">Las firmas de los clientes <strong>no se suben a Google Sheets</strong> (por el límite de 50,000 caracteres por celda) — solo viven en el dispositivo donde se capturaron. Usa esta herramienta para respaldarlas en un archivo y restaurarlas en cualquier dispositivo cuando se necesiten (por ejemplo, para imprimir un contrato).</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <button onclick="exportFirmas()" class="flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold py-2.5 rounded-lg transition">
+                            <i data-lucide="download" class="h-3.5 w-3.5"></i> Exportar Firmas (.json)
+                        </button>
+                        <label class="flex items-center justify-center gap-2 border border-emerald-700/50 text-emerald-400 hover:bg-emerald-950/40 text-xs font-semibold py-2.5 rounded-lg transition cursor-pointer">
+                            <i data-lucide="upload" class="h-3.5 w-3.5"></i> Importar Firmas (.json)
+                            <input type="file" accept=".json" class="hidden" onchange="importFirmas(event)">
+                        </label>
+                    </div>
+                    <p id="firmas-backup-status" class="text-[10px] text-slate-500"></p>
                 </div>
 
                 <!-- Recuadro para copiar el Script de Google -->
@@ -1786,6 +1807,67 @@ self.addEventListener('message', function(event) {
             }
         }
 
+        // ── DETALLE DE CAMBIOS PENDIENTES POR SINCRONIZAR ──
+        function showPendingSyncDetails() {
+            const pc = JSON.parse(localStorage.getItem('huerta_pending_clients')) || [];
+            const pp = JSON.parse(localStorage.getItem('huerta_pending_payments')) || [];
+            const pe = JSON.parse(localStorage.getItem('huerta_pending_employees')) || [];
+
+            let html = '';
+
+            if (pc.length > 0) {
+                html += `<div class="mb-3"><p class="text-xs font-bold text-amber-400 uppercase mb-1.5 flex items-center gap-1.5"><i data-lucide="file-text" class="h-3.5 w-3.5"></i> Contratos / Clientes (${pc.length})</p><div class="space-y-1">`;
+                pc.forEach(folio => {
+                    const c = clients.find(cl => cl.folio === folio);
+                    html += `<div class="text-[11px] bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 flex justify-between">
+                        <span class="text-slate-300">${c ? c.nombre : '(no encontrado)'}</span>
+                        <span class="text-amber-500 font-mono">${folio}</span>
+                    </div>`;
+                });
+                html += `</div></div>`;
+            }
+
+            if (pp.length > 0) {
+                html += `<div class="mb-3"><p class="text-xs font-bold text-emerald-400 uppercase mb-1.5 flex items-center gap-1.5"><i data-lucide="dollar-sign" class="h-3.5 w-3.5"></i> Abonos (${pp.length})</p><div class="space-y-1">`;
+                pp.forEach(payId => {
+                    const p = payments.find(pm => pm.id === payId);
+                    html += `<div class="text-[11px] bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 flex justify-between">
+                        <span class="text-slate-300">${p ? p.clienteId + ' · ' + p.fecha : '(no encontrado)'}</span>
+                        <span class="text-emerald-400 font-bold">${p ? '$' + Number(p.monto).toLocaleString() : ''}</span>
+                    </div>`;
+                });
+                html += `</div></div>`;
+            }
+
+            if (pe.length > 0) {
+                html += `<div class="mb-3"><p class="text-xs font-bold text-cyan-400 uppercase mb-1.5 flex items-center gap-1.5"><i data-lucide="users" class="h-3.5 w-3.5"></i> Empleados (${pe.length})</p><div class="space-y-1">`;
+                pe.forEach(empId => {
+                    const emp = employees.find(e => e.id === empId);
+                    html += `<div class="text-[11px] bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5">
+                        <span class="text-slate-300">${emp ? emp.nombre : empId}</span>
+                    </div>`;
+                });
+                html += `</div></div>`;
+            }
+
+            if (!html) {
+                html = `<div class="text-center py-6 text-slate-500 text-sm">✅ Todo sincronizado — no hay cambios pendientes.</div>`;
+            }
+
+            const total = pc.length + pp.length + pe.length;
+            html += `<div class="flex gap-3 mt-4">
+                ${total > 0 ? `<button onclick="document.getElementById('client-history-modal').classList.add('hidden'); switchTab('sync'); setTimeout(syncPendingData, 200);" class="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2.5 rounded-lg text-sm flex items-center justify-center gap-2"><i data-lucide="refresh-cw" class="h-4 w-4"></i> Sincronizar ahora</button>` : ''}
+                <button onclick="document.getElementById('client-history-modal').classList.add('hidden')" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg text-sm">Cerrar</button>
+            </div>`;
+
+            document.getElementById('history-client-subtitle').innerText = total + ' cambio' + (total !== 1 ? 's' : '') + ' pendiente' + (total !== 1 ? 's' : '') + ' de sincronizar';
+            document.getElementById('history-summary').innerHTML = '';
+            document.getElementById('history-payments-list').innerHTML = html;
+            document.getElementById('history-modal-title').innerText = 'Cambios Pendientes por Sincronizar';
+            document.getElementById('client-history-modal').classList.remove('hidden');
+            safeCreateIcons();
+        }
+
         // ═══════════════════════════════════════════════════════════════════
         // BOTÓN DE INSTALACIÓN PWA (solo aparece cuando el browser lo permite)
         // ═══════════════════════════════════════════════════════════════════
@@ -2248,6 +2330,8 @@ function doPost(e) {
 
                     updateMetrics();
                     updateSyncStatus();
+                    renderClientsList();
+                    try { renderPaymentsTab(); } catch(e) {}
                     try { updatePendingBadge(); } catch(e) {}
                     showToast(`✅ Sincronización completa — ${(remoteData.contracts||[]).length} contratos, ${(remoteData.payments||[]).length} abonos en la nube.`, "success");
                 } else {
@@ -2343,10 +2427,26 @@ function doPost(e) {
         }
 
         // Modal de cambio de estatus
+        // Motivos predefinidos para Suspensión / Cancelación
+        const MOTIVOS_SUSPENSION = [
+            'Atraso prolongado en pagos',
+            'Dificultad económica temporal del titular',
+            'Solicitud expresa del cliente',
+            'En proceso de renegociación de plan',
+            'Otro'
+        ];
+        const MOTIVOS_CANCELACION = [
+            'Falta de pago definitiva (más de 90 días)',
+            'Solicitud expresa del cliente / desistimiento',
+            'Servicio ya utilizado (defunción del titular)',
+            'Duplicado o error de captura',
+            'Cambio a otro plan / contrato',
+            'Otro'
+        ];
+
         function changeContractStatus(folio) {
             const c = clients.find(cl => cl.folio === folio);
             if (!c) return;
-            const current = c.estadoManual || 'Activo';
             const opciones = [
                 { val: '', label: '● Activo (automático)',    desc: 'El sistema calcula Vigente / Atrasado / Liquidado según pagos' },
                 { val: 'Suspendido', label: '⏸ Suspendido',  desc: 'Pagos en pausa temporal — no se cuenta como atrasado' },
@@ -2354,7 +2454,7 @@ function doPost(e) {
             ];
             const opcionesHTML = opciones.map(o =>
                 `<label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition ${(c.estadoManual || '') === o.val ? 'border-amber-500 bg-amber-950/30' : 'border-slate-700 hover:border-slate-500'}">
-                    <input type="radio" name="nuevo-estado" value="${o.val}" ${(c.estadoManual || '') === o.val ? 'checked' : ''} class="mt-0.5 accent-amber-500">
+                    <input type="radio" name="nuevo-estado" value="${o.val}" ${(c.estadoManual || '') === o.val ? 'checked' : ''} class="mt-0.5 accent-amber-500" onchange="toggleMotivoBox(this.value)">
                     <div>
                         <p class="text-sm font-semibold text-slate-200">${o.label}</p>
                         <p class="text-xs text-slate-500 mt-0.5">${o.desc}</p>
@@ -2362,11 +2462,26 @@ function doPost(e) {
                 </label>`
             ).join('');
 
+            const motivoOptsSusp = MOTIVOS_SUSPENSION.map(m => `<option value="${m}" ${c.motivoEstado === m ? 'selected' : ''}>${m}</option>`).join('');
+            const motivoOptsCanc = MOTIVOS_CANCELACION.map(m => `<option value="${m}" ${c.motivoEstado === m ? 'selected' : ''}>${m}</option>`).join('');
+            const estadoActual = c.estadoManual || '';
+            const mostrarMotivo = estadoActual === 'Suspendido' || estadoActual === 'Cancelado';
+
             // Reusar el modal de historial como contenedor
             document.getElementById('history-client-subtitle').innerText = c.nombre + ' · ' + c.folio;
             document.getElementById('history-summary').innerHTML = '';
             document.getElementById('history-payments-list').innerHTML =
                 `<div class="space-y-2 py-2">${opcionesHTML}</div>
+                 <div id="motivo-estado-box" class="${mostrarMotivo ? '' : 'hidden'} space-y-2 bg-slate-900 border border-slate-700 rounded-lg p-3">
+                    <p class="text-xs font-semibold text-slate-300">Motivo:</p>
+                    <select id="motivo-suspendido-select" class="${estadoActual === 'Suspendido' ? '' : 'hidden'} w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:outline-none">
+                        ${motivoOptsSusp}
+                    </select>
+                    <select id="motivo-cancelado-select" class="${estadoActual === 'Cancelado' ? '' : 'hidden'} w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:outline-none">
+                        ${motivoOptsCanc}
+                    </select>
+                    <textarea id="motivo-detalle" placeholder="Detalles adicionales (opcional)..." class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:outline-none" rows="2">${c.motivoDetalle || ''}</textarea>
+                 </div>
                  <div class="flex gap-3 mt-4">
                     <button onclick="applyContractStatus('${folio}')" class="flex-1 bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold py-2.5 rounded-lg text-sm">Guardar Estatus</button>
                     <button onclick="document.getElementById('client-history-modal').classList.add('hidden')" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg text-sm">Cancelar</button>
@@ -2375,14 +2490,44 @@ function doPost(e) {
             document.getElementById('client-history-modal').classList.remove('hidden');
         }
 
+        function toggleMotivoBox(value) {
+            const box = document.getElementById('motivo-estado-box');
+            const suspSelect = document.getElementById('motivo-suspendido-select');
+            const cancSelect = document.getElementById('motivo-cancelado-select');
+            if (!box) return;
+            if (value === 'Suspendido' || value === 'Cancelado') {
+                box.classList.remove('hidden');
+                suspSelect.classList.toggle('hidden', value !== 'Suspendido');
+                cancSelect.classList.toggle('hidden', value !== 'Cancelado');
+            } else {
+                box.classList.add('hidden');
+            }
+        }
+
         function applyContractStatus(folio) {
             const selected = document.querySelector('input[name="nuevo-estado"]:checked');
             if (!selected) return;
             const idx = clients.findIndex(c => c.folio === folio);
             if (idx === -1) return;
             const nuevoEstado = selected.value; // '' = automático, 'Suspendido', 'Cancelado'
+
             clients[idx].estadoManual = nuevoEstado || null;
             clients[idx].estado = nuevoEstado || 'Activo';
+
+            // Capturar motivo según el estado elegido
+            if (nuevoEstado === 'Suspendido') {
+                const sel = document.getElementById('motivo-suspendido-select');
+                clients[idx].motivoEstado = sel ? sel.value : '';
+            } else if (nuevoEstado === 'Cancelado') {
+                const sel = document.getElementById('motivo-cancelado-select');
+                clients[idx].motivoEstado = sel ? sel.value : '';
+            } else {
+                clients[idx].motivoEstado = '';
+            }
+            const detalle = document.getElementById('motivo-detalle');
+            clients[idx].motivoDetalle = detalle ? detalle.value.trim() : '';
+            clients[idx].estadoFecha = new Date().toISOString().split('T')[0];
+
             localStorage.setItem('huerta_clients', JSON.stringify(clients));
             // Marcar como pendiente de sync
             if (!pendingSyncClients.includes(folio)) {
@@ -2394,10 +2539,74 @@ function doPost(e) {
             renderClientsList();
             updateMetrics();
             const labels = { '': 'Activo (automático)', 'Suspendido': 'Suspendido', 'Cancelado': 'Cancelado' };
-            showToast('Estatus actualizado: ' + labels[nuevoEstado], 'success');
+            let msg = 'Estatus actualizado: ' + labels[nuevoEstado];
+            if (clients[idx].motivoEstado) msg += ' — ' + clients[idx].motivoEstado;
+            showToast(msg, 'success');
         }
 
-        // ── RESET LOCAL DATA ──
+        // ── RESPALDO DE FIRMAS DIGITALES ──
+        function exportFirmas() {
+            const firmados = clients.filter(c => c.firmaBase64);
+            if (firmados.length === 0) {
+                showToast('No hay firmas guardadas en este dispositivo para exportar.', 'error');
+                return;
+            }
+            const backup = {
+                tipo: 'huerta_firmas_backup',
+                version: '1.0',
+                fecha: new Date().toISOString(),
+                firmas: firmados.map(c => ({ folio: c.folio, nombre: c.nombre, firmaBase64: c.firmaBase64 }))
+            };
+            const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const fecha = new Date().toISOString().split('T')[0];
+            a.download = `huerta-firmas-${fecha}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            const statusEl = document.getElementById('firmas-backup-status');
+            if (statusEl) statusEl.innerText = `✅ ${firmados.length} firma(s) exportada(s) — guarda este archivo en un lugar seguro.`;
+            showToast(`✅ ${firmados.length} firma(s) exportada(s).`, 'success');
+        }
+
+        function importFirmas(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (!data.firmas || !Array.isArray(data.firmas)) {
+                        showToast('El archivo no tiene el formato esperado de respaldo de firmas.', 'error');
+                        return;
+                    }
+                    let restauradas = 0, sinContrato = 0;
+                    data.firmas.forEach(f => {
+                        const idx = clients.findIndex(c => c.folio === f.folio);
+                        if (idx !== -1) {
+                            clients[idx].firmaBase64 = f.firmaBase64;
+                            restauradas++;
+                        } else {
+                            sinContrato++;
+                        }
+                    });
+                    localStorage.setItem('huerta_clients', JSON.stringify(clients));
+                    renderClientsList();
+                    const statusEl = document.getElementById('firmas-backup-status');
+                    let msg = `✅ ${restauradas} firma(s) restaurada(s).`;
+                    if (sinContrato > 0) msg += ` (${sinContrato} folio(s) no encontrados en este dispositivo — sincroniza primero para descargar esos contratos)`;
+                    if (statusEl) statusEl.innerText = msg;
+                    showToast(`✅ ${restauradas} firma(s) restaurada(s) en este dispositivo.`, 'success');
+                } catch (err) {
+                    showToast('Error al leer el archivo: ' + err.message, 'error');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
         function resetLocalData(tipo) {
             const mensajes = {
                 contratos: '¿Seguro que quieres borrar todos los contratos y pagos de ESTE dispositivo?\n\nEsta acción no se puede deshacer.\nLos datos en Google Sheets NO se borran.',
@@ -2556,6 +2765,13 @@ function doPost(e) {
                 var borderColor = status === 'liquidado' ? 'border-emerald-900/40' : status === 'atrasado' ? 'border-red-900/40' : status === 'cancelado' ? 'border-slate-700 opacity-60' : status === 'suspendido' ? 'border-orange-900/40' : 'border-slate-800';
                 var barColor    = status === 'liquidado' ? 'bg-emerald-500' : status === 'atrasado' ? 'bg-red-500' : status === 'cancelado' ? 'bg-slate-600' : status === 'suspendido' ? 'bg-orange-500' : 'bg-amber-500';
                 var pendColor   = status === 'atrasado' ? 'text-red-400' : status === 'cancelado' ? 'text-slate-500' : 'text-amber-400';
+                var motivoHTML = (status === 'cancelado' || status === 'suspendido') && c.motivoEstado
+                    ? '<div class="text-[11px] ' + (status === 'cancelado' ? 'text-slate-500' : 'text-orange-400') + ' bg-slate-900/60 border border-slate-800 rounded-lg px-2.5 py-1.5">' +
+                        '<span class="font-semibold">Motivo:</span> ' + c.motivoEstado +
+                        (c.motivoDetalle ? ' — ' + c.motivoDetalle : '') +
+                        (c.estadoFecha ? ' <span class="text-slate-600">(' + c.estadoFecha + ')</span>' : '') +
+                      '</div>'
+                    : '';
                 return '<div class="bg-slate-950 p-5 rounded-xl border ' + borderColor + ' space-y-3">' +
                     '<div class="flex justify-between items-start gap-2">' +
                         '<div>' +
@@ -2567,6 +2783,7 @@ function doPost(e) {
                             (!c.firmaBase64 ? '<span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">Sin firma</span>' : '') +
                         '</div>' +
                     '</div>' +
+                    motivoHTML +
                     '<div>' +
                         '<div class="flex justify-between text-[11px] text-slate-400 mb-1"><span>Progreso de pago</span><span class="font-bold">' + pct + '% cubierto</span></div>' +
                         '<div class="w-full bg-slate-900 rounded-full h-2"><div class="' + barColor + ' h-2 rounded-full" style="width:' + pct + '%"></div></div>' +
@@ -2581,6 +2798,7 @@ function doPost(e) {
                         '<button onclick="openPaymentModalWithClient(\'' + c.folio + '\')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="dollar-sign" class="h-3.5 w-3.5"></i> Abonar</button>' +
                         '<button onclick="openClientHistory(\'' + c.folio + '\')" class="bg-slate-900 border border-emerald-700/40 hover:bg-emerald-950/30 text-emerald-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="clock" class="h-3.5 w-3.5"></i> Historial</button>' +
                         '<button onclick="openNewSignatureBox(\'' + c.folio + '\')" class="bg-slate-900 border border-slate-700 hover:text-white text-slate-400 text-xs px-3 py-2 rounded">Firma</button>' +
+                        '<button onclick="changeContractStatus(\'' + c.folio + '\')" class="admin-only bg-slate-900 border border-slate-700 hover:border-amber-500 text-slate-400 hover:text-amber-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="settings-2" class="h-3.5 w-3.5"></i> Estatus</button>' +
                     '</div>' +
                 '</div>';
             }).join('');
@@ -3010,6 +3228,7 @@ function doPost(e) {
             closePaymentModal();
             updateMetrics();
             renderPaymentsTab();
+            renderClientsList();
             showToast(`Abono por $${amount.toLocaleString()} procesado con éxito.`);
 
             // Preguntar si desea imprimir comprobante
