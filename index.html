@@ -291,7 +291,7 @@ self.addEventListener('message', function(event) {
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.8.0 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.8.1 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -1013,6 +1013,20 @@ self.addEventListener('message', function(event) {
                     Cerrar
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- MODAL GENÉRICO: cambio de estatus / pendientes de sync -->
+    <div id="generic-info-modal" class="fixed inset-0 bg-slate-950/90 items-center justify-center p-4 z-50" style="display:none">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+            <div class="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
+                <div>
+                    <h3 id="generic-modal-title" class="text-base font-serif font-bold text-slate-100"></h3>
+                    <p id="generic-modal-subtitle" class="text-xs text-slate-400 mt-0.5"></p>
+                </div>
+                <button onclick="closeGenericModal()" class="text-slate-400 hover:text-white p-1"><i data-lucide="x" class="h-5 w-5"></i></button>
+            </div>
+            <div id="generic-modal-body" class="p-4 max-h-[70vh] overflow-y-auto no-scrollbar"></div>
         </div>
     </div>
 
@@ -1856,16 +1870,12 @@ self.addEventListener('message', function(event) {
 
             const total = pc.length + pp.length + pe.length;
             html += `<div class="flex gap-3 mt-4">
-                ${total > 0 ? `<button onclick="document.getElementById('client-history-modal').classList.add('hidden'); switchTab('sync'); setTimeout(syncPendingData, 200);" class="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2.5 rounded-lg text-sm flex items-center justify-center gap-2"><i data-lucide="refresh-cw" class="h-4 w-4"></i> Sincronizar ahora</button>` : ''}
-                <button onclick="document.getElementById('client-history-modal').classList.add('hidden')" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg text-sm">Cerrar</button>
+                ${total > 0 ? `<button onclick="closeGenericModal(); switchTab('sync'); setTimeout(syncPendingData, 200);" class="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2.5 rounded-lg text-sm flex items-center justify-center gap-2"><i data-lucide="refresh-cw" class="h-4 w-4"></i> Sincronizar ahora</button>` : ''}
+                <button onclick="closeGenericModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg text-sm">Cerrar</button>
             </div>`;
 
-            document.getElementById('history-client-subtitle').innerText = total + ' cambio' + (total !== 1 ? 's' : '') + ' pendiente' + (total !== 1 ? 's' : '') + ' de sincronizar';
-            document.getElementById('history-summary').innerHTML = '';
-            document.getElementById('history-payments-list').innerHTML = html;
-            document.getElementById('history-modal-title').innerText = 'Cambios Pendientes por Sincronizar';
-            document.getElementById('client-history-modal').classList.remove('hidden');
-            safeCreateIcons();
+            const subtitle = total + ' cambio' + (total !== 1 ? 's' : '') + ' pendiente' + (total !== 1 ? 's' : '') + ' de sincronizar';
+            openGenericModal('Cambios Pendientes por Sincronizar', subtitle, html);
         }
 
         // ═══════════════════════════════════════════════════════════════════
@@ -2444,6 +2454,18 @@ function doPost(e) {
             'Otro'
         ];
 
+        function openGenericModal(title, subtitle, bodyHTML) {
+            document.getElementById('generic-modal-title').innerText = title;
+            document.getElementById('generic-modal-subtitle').innerText = subtitle || '';
+            document.getElementById('generic-modal-body').innerHTML = bodyHTML;
+            const modal = document.getElementById('generic-info-modal');
+            modal.style.display = 'flex';
+            safeCreateIcons();
+        }
+        function closeGenericModal() {
+            document.getElementById('generic-info-modal').style.display = 'none';
+        }
+
         function changeContractStatus(folio) {
             const c = clients.find(cl => cl.folio === folio);
             if (!c) return;
@@ -2467,12 +2489,9 @@ function doPost(e) {
             const estadoActual = c.estadoManual || '';
             const mostrarMotivo = estadoActual === 'Suspendido' || estadoActual === 'Cancelado';
 
-            // Reusar el modal de historial como contenedor
-            document.getElementById('history-client-subtitle').innerText = c.nombre + ' · ' + c.folio;
-            document.getElementById('history-summary').innerHTML = '';
-            document.getElementById('history-payments-list').innerHTML =
+            const bodyHTML =
                 `<div class="space-y-2 py-2">${opcionesHTML}</div>
-                 <div id="motivo-estado-box" class="${mostrarMotivo ? '' : 'hidden'} space-y-2 bg-slate-900 border border-slate-700 rounded-lg p-3">
+                 <div id="motivo-estado-box" class="${mostrarMotivo ? '' : 'hidden'} space-y-2 bg-slate-900 border border-slate-700 rounded-lg p-3 mt-2">
                     <p class="text-xs font-semibold text-slate-300">Motivo:</p>
                     <select id="motivo-suspendido-select" class="${estadoActual === 'Suspendido' ? '' : 'hidden'} w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:outline-none">
                         ${motivoOptsSusp}
@@ -2484,10 +2503,9 @@ function doPost(e) {
                  </div>
                  <div class="flex gap-3 mt-4">
                     <button onclick="applyContractStatus('${folio}')" class="flex-1 bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold py-2.5 rounded-lg text-sm">Guardar Estatus</button>
-                    <button onclick="document.getElementById('client-history-modal').classList.add('hidden')" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg text-sm">Cancelar</button>
+                    <button onclick="closeGenericModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg text-sm">Cancelar</button>
                  </div>`;
-            document.getElementById('history-modal-title').innerText = 'Cambiar Estatus del Contrato';
-            document.getElementById('client-history-modal').classList.remove('hidden');
+            openGenericModal('Cambiar Estatus del Contrato', c.nombre + ' · ' + c.folio, bodyHTML);
         }
 
         function toggleMotivoBox(value) {
@@ -2535,7 +2553,7 @@ function doPost(e) {
                 localStorage.setItem('huerta_pending_clients', JSON.stringify(pendingSyncClients));
             }
             try { updatePendingBadge(); } catch(e) {}
-            document.getElementById('client-history-modal').classList.add('hidden');
+            closeGenericModal();
             renderClientsList();
             updateMetrics();
             const labels = { '': 'Activo (automático)', 'Suspendido': 'Suspendido', 'Cancelado': 'Cancelado' };
