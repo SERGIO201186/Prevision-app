@@ -291,7 +291,7 @@ self.addEventListener('message', function(event) {
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.5.0 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.6.0 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -1375,7 +1375,7 @@ self.addEventListener('message', function(event) {
                 const incluyeHTML = (p.incluye || []).map(i => `<li class="flex gap-1.5"><i data-lucide="check" class="h-3.5 w-3.5 text-emerald-500 flex-shrink-0 mt-0.5"></i><span>${i}</span></li>`).join('');
                 const noIncluyeHTML = (p.noIncluye || []).map(i => `<li class="flex gap-1.5"><i data-lucide="x" class="h-3.5 w-3.5 text-red-500 flex-shrink-0 mt-0.5"></i><span>${i}</span></li>`).join('');
                 const imagenHTML = p.imagen
-                    ? `<div class="w-full h-40 bg-slate-900 overflow-hidden"><img src="${p.imagen}" alt="${p.nombre}" class="w-full h-full object-cover" onerror="this.parentElement.innerHTML='<div class=\\'w-full h-40 flex items-center justify-center text-slate-700\\'><svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'40\\' height=\\'40\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'1.5\\'><rect x=\\'3\\' y=\\'8\\' width=\\'18\\' height=\\'10\\' rx=\\'1\\'/><path d=\\'M3 12h18\\'/></svg></div>'"></div>`
+                    ? `<div class="w-full h-40 bg-slate-900 overflow-hidden flex items-center justify-center"><img src="${p.imagen}" alt="${p.nombre}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="w-full h-40 items-center justify-center text-slate-700" style="display:none;"><i data-lucide="image" class="h-10 w-10"></i></div></div>`
                     : `<div class="w-full h-40 bg-slate-900 flex items-center justify-center text-slate-700"><i data-lucide="image" class="h-10 w-10"></i></div>`;
                 return `<div class="bg-slate-950 border-2 ${colores[p.id] || 'border-slate-700'} rounded-2xl overflow-hidden flex flex-col">
                     ${imagenHTML}
@@ -1412,9 +1412,12 @@ self.addEventListener('message', function(event) {
                                 <ul class="text-[11px] text-slate-400 space-y-1">${noIncluyeHTML}</ul>
                             </div>` : ''}
                         </div>
-                        <button onclick="shareSinglePlanWhatsApp('${p.id}')" class="mt-auto bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold py-2 rounded-lg flex items-center justify-center gap-1.5">
-                            <i data-lucide="send" class="h-3.5 w-3.5"></i> Compartir este plan
-                        </button>
+                        <div class="mt-auto flex gap-2">
+                            <button onclick="shareSinglePlanWhatsApp('${p.id}')" class="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold py-2 rounded-lg flex items-center justify-center gap-1.5">
+                                <i data-lucide="send" class="h-3.5 w-3.5"></i> Compartir
+                            </button>
+                            ${p.imagen ? `<button onclick="downloadCatalogImage('${p.id}')" title="Descargar imagen para adjuntar en WhatsApp" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold px-3 py-2 rounded-lg flex items-center justify-center"><i data-lucide="image-down" class="h-3.5 w-3.5"></i></button>` : ''}
+                        </div>
                     </div>
                 </div>`;
             }).join('');
@@ -1552,6 +1555,22 @@ self.addEventListener('message', function(event) {
             }).catch(() => {
                 showToast('No se pudo copiar el enlace.', 'error');
             });
+        }
+
+        function downloadCatalogImage(planId) {
+            const p = PAQUETES.find(x => x.id === planId);
+            if (!p || !p.imagen) return;
+            const a = document.createElement('a');
+            a.href = p.imagen;
+            // Determinar extensión según el tipo de dato
+            let ext = 'jpg';
+            if (p.imagen.startsWith('data:image/png')) ext = 'png';
+            else if (p.imagen.startsWith('data:image/webp')) ext = 'webp';
+            a.download = `huerta-${p.id}.${ext}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            showToast('Imagen descargada — ya puedes adjuntarla en WhatsApp.', 'success');
         }
 
         function shareSinglePlanWhatsApp(planId) {
@@ -3211,36 +3230,36 @@ function doPost(e) {
 <meta charset="UTF-8">
 <title>Contrato ${c.folio} - Servicios Funerarios Huerta</title>
 <style>
-  @page { size: 216mm 340mm; margin: 0.6cm; }
+  @page { size: letter; margin: 0.45cm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 7.5pt; color: #111; background: #fff; }
-  .header-bar { background: #e07b00; color: #fff; text-align: center; font-weight: 900; font-size: 8.5pt; letter-spacing: 0.08em; padding: 3px 0; margin-bottom: 5px; text-transform: uppercase; }
+  body { font-family: Arial, sans-serif; font-size: 8.3pt; color: #111; background: #fff; }
+  .header-bar { background: #e07b00; color: #fff; text-align: center; font-weight: 900; font-size: 9.5pt; letter-spacing: 0.08em; padding: 3px 0; margin-bottom: 4px; text-transform: uppercase; }
   .membrete { display: flex; justify-content: space-between; align-items: flex-start; border: 1.5px solid #1e293b; border-radius: 4px; padding: 5px 8px; margin-bottom: 4px; background: #f9fafb; }
   .membrete-logo { border: 2px solid #0f172a; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 3px; background: #fff; flex-shrink: 0; }
-  .membrete-nombre { font-family: Georgia, serif; font-weight: 900; font-size: 9.5pt; color: #0f172a; text-transform: uppercase; line-height: 1.15; }
-  .membrete-slogan { font-size: 5.5pt; color: #d97706; font-style: italic; font-weight: 700; margin: 1px 0; }
-  .membrete-datos { font-size: 5.5pt; color: #475569; line-height: 1.5; }
+  .membrete-nombre { font-family: Georgia, serif; font-weight: 900; font-size: 10.5pt; color: #0f172a; text-transform: uppercase; line-height: 1.1; }
+  .membrete-slogan { font-size: 6.3pt; color: #d97706; font-style: italic; font-weight: 700; margin: 1px 0; }
+  .membrete-datos { font-size: 6.3pt; color: #475569; line-height: 1.35; }
   .folio-box { border: 1.5px solid #e07b00; border-radius: 4px; padding: 4px 8px; text-align: center; min-width: 100px; background: #fff7ed; flex-shrink: 0; }
-  .folio-label { font-size: 5pt; text-transform: uppercase; font-weight: 800; color: #92400e; letter-spacing: 0.07em; }
-  .folio-num { font-size: 11pt; font-weight: 900; font-family: monospace; color: #e07b00; margin: 2px 0; }
-  .folio-fecha { font-size: 5pt; color: #92400e; font-weight: 700; }
+  .folio-label { font-size: 5.8pt; text-transform: uppercase; font-weight: 800; color: #92400e; letter-spacing: 0.07em; }
+  .folio-num { font-size: 12.5pt; font-weight: 900; font-family: monospace; color: #e07b00; margin: 2px 0; }
+  .folio-fecha { font-size: 5.8pt; color: #92400e; font-weight: 700; }
   .titulo-contrato { text-align: center; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; padding: 2px 0; margin-bottom: 4px; }
-  .titulo-contrato-principal { font-family: Georgia, serif; font-weight: 700; font-size: 7.5pt; text-transform: uppercase; color: #0f172a; letter-spacing: 0.05em; }
-  .titulo-sub { font-size: 5.5pt; color: #64748b; margin-top: 1px; }
+  .titulo-contrato-principal { font-family: Georgia, serif; font-weight: 700; font-size: 8.5pt; text-transform: uppercase; color: #0f172a; letter-spacing: 0.05em; }
+  .titulo-sub { font-size: 6.3pt; color: #64748b; margin-top: 1px; }
   .partes { display: grid; grid-template-columns: 1fr 2fr; gap: 4px; margin-bottom: 3px; }
-  .parte-box { border: 1px solid #cbd5e1; border-radius: 3px; padding: 3px 5px; font-size: 6pt; background: #f8fafc; line-height: 1.45; }
-  .benef-box { border: 1px solid #cbd5e1; border-radius: 3px; padding: 3px 5px; font-size: 6pt; background: #f8fafc; line-height: 1.45; margin-bottom: 4px; }
-  .clausulas { font-size: 5.8pt; line-height: 1.25; color: #1e293b; text-align: justify; margin-bottom: 4px; }
-  .clausulas p { margin-bottom: 1.5px; }
-  .observaciones { border: 1px solid #cbd5e1; border-radius: 3px; padding: 3px 5px; font-size: 5.8pt; background: #f8fafc; margin-bottom: 5px; line-height: 1.35; }
+  .parte-box { border: 1px solid #cbd5e1; border-radius: 3px; padding: 2px 5px; font-size: 6.8pt; background: #f8fafc; line-height: 1.3; }
+  .benef-box { border: 1px solid #cbd5e1; border-radius: 3px; padding: 2px 5px; font-size: 6.8pt; background: #f8fafc; line-height: 1.3; margin-bottom: 3px; }
+  .clausulas { font-size: 6.5pt; line-height: 1.18; color: #1e293b; text-align: justify; margin-bottom: 3px; }
+  .clausulas p { margin-bottom: 1px; }
+  .observaciones { border: 1px solid #cbd5e1; border-radius: 3px; padding: 2px 5px; font-size: 6.5pt; background: #f8fafc; margin-bottom: 3px; line-height: 1.25; }
   .firmas { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: center; }
   .firma-box { border: 1px solid #cbd5e1; border-radius: 4px; padding: 5px; background: #f8fafc; display: flex; flex-direction: column; align-items: center; min-height: 75px; }
-  .firma-label { font-size: 5.8pt; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.06em; margin-bottom: 4px; }
+  .firma-label { font-size: 6.5pt; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.06em; margin-bottom: 3px; }
   .firma-img-area { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 42px; width: 100%; }
-  .firma-nombre { font-weight: 700; font-size: 6.5pt; text-transform: uppercase; color: #0f172a; border-top: 1px solid #cbd5e1; padding-top: 3px; width: 100%; }
-  .firma-folio { font-size: 5.2pt; color: #64748b; margin-top: 1px; }
-  .sello-empresa { font-family: Georgia, serif; font-weight: 700; font-size: 6.5pt; color: #0f172a; }
-  .sello-ciudad { font-size: 5.2pt; color: #64748b; margin-top: 1px; }
+  .firma-nombre { font-weight: 700; font-size: 7.3pt; text-transform: uppercase; color: #0f172a; border-top: 1px solid #cbd5e1; padding-top: 2px; width: 100%; }
+  .firma-folio { font-size: 6pt; color: #64748b; margin-top: 1px; }
+  .sello-empresa { font-family: Georgia, serif; font-weight: 700; font-size: 7.3pt; color: #0f172a; }
+  .sello-ciudad { font-size: 6pt; color: #64748b; margin-top: 1px; }
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 </style>
 </head>
