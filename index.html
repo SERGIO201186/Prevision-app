@@ -291,7 +291,7 @@ self.addEventListener('message', function(event) {
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.6.0 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.7.0 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -3230,36 +3230,36 @@ function doPost(e) {
 <meta charset="UTF-8">
 <title>Contrato ${c.folio} - Servicios Funerarios Huerta</title>
 <style>
-  @page { size: letter; margin: 0.45cm; }
+  @page { size: letter; margin: 1.3cm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 8.3pt; color: #111; background: #fff; }
-  .header-bar { background: #e07b00; color: #fff; text-align: center; font-weight: 900; font-size: 9.5pt; letter-spacing: 0.08em; padding: 3px 0; margin-bottom: 4px; text-transform: uppercase; }
+  body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #111; background: #fff; }
+  .header-bar { background: #e07b00; color: #fff; text-align: center; font-weight: 900; font-size: 11pt; letter-spacing: 0.08em; padding: 4px 0; margin-bottom: 6px; text-transform: uppercase; }
   .membrete { display: flex; justify-content: space-between; align-items: flex-start; border: 1.5px solid #1e293b; border-radius: 4px; padding: 5px 8px; margin-bottom: 4px; background: #f9fafb; }
   .membrete-logo { border: 2px solid #0f172a; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 3px; background: #fff; flex-shrink: 0; }
-  .membrete-nombre { font-family: Georgia, serif; font-weight: 900; font-size: 10.5pt; color: #0f172a; text-transform: uppercase; line-height: 1.1; }
-  .membrete-slogan { font-size: 6.3pt; color: #d97706; font-style: italic; font-weight: 700; margin: 1px 0; }
-  .membrete-datos { font-size: 6.3pt; color: #475569; line-height: 1.35; }
+  .membrete-nombre { font-family: Georgia, serif; font-weight: 900; font-size: 12pt; color: #0f172a; text-transform: uppercase; line-height: 1.1; }
+  .membrete-slogan { font-size: 7.2pt; color: #d97706; font-style: italic; font-weight: 700; margin: 1px 0; }
+  .membrete-datos { font-size: 7.2pt; color: #475569; line-height: 1.4; }
   .folio-box { border: 1.5px solid #e07b00; border-radius: 4px; padding: 4px 8px; text-align: center; min-width: 100px; background: #fff7ed; flex-shrink: 0; }
-  .folio-label { font-size: 5.8pt; text-transform: uppercase; font-weight: 800; color: #92400e; letter-spacing: 0.07em; }
-  .folio-num { font-size: 12.5pt; font-weight: 900; font-family: monospace; color: #e07b00; margin: 2px 0; }
-  .folio-fecha { font-size: 5.8pt; color: #92400e; font-weight: 700; }
+  .folio-label { font-size: 6.6pt; text-transform: uppercase; font-weight: 800; color: #92400e; letter-spacing: 0.07em; }
+  .folio-num { font-size: 14pt; font-weight: 900; font-family: monospace; color: #e07b00; margin: 2px 0; }
+  .folio-fecha { font-size: 6.6pt; color: #92400e; font-weight: 700; }
   .titulo-contrato { text-align: center; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; padding: 2px 0; margin-bottom: 4px; }
-  .titulo-contrato-principal { font-family: Georgia, serif; font-weight: 700; font-size: 8.5pt; text-transform: uppercase; color: #0f172a; letter-spacing: 0.05em; }
-  .titulo-sub { font-size: 6.3pt; color: #64748b; margin-top: 1px; }
+  .titulo-contrato-principal { font-family: Georgia, serif; font-weight: 700; font-size: 9.8pt; text-transform: uppercase; color: #0f172a; letter-spacing: 0.05em; }
+  .titulo-sub { font-size: 7.2pt; color: #64748b; margin-top: 2px; }
   .partes { display: grid; grid-template-columns: 1fr 2fr; gap: 4px; margin-bottom: 3px; }
-  .parte-box { border: 1px solid #cbd5e1; border-radius: 3px; padding: 2px 5px; font-size: 6.8pt; background: #f8fafc; line-height: 1.3; }
-  .benef-box { border: 1px solid #cbd5e1; border-radius: 3px; padding: 2px 5px; font-size: 6.8pt; background: #f8fafc; line-height: 1.3; margin-bottom: 3px; }
-  .clausulas { font-size: 6.5pt; line-height: 1.18; color: #1e293b; text-align: justify; margin-bottom: 3px; }
-  .clausulas p { margin-bottom: 1px; }
-  .observaciones { border: 1px solid #cbd5e1; border-radius: 3px; padding: 2px 5px; font-size: 6.5pt; background: #f8fafc; margin-bottom: 3px; line-height: 1.25; }
+  .parte-box { border: 1px solid #cbd5e1; border-radius: 3px; padding: 4px 6px; font-size: 7.8pt; background: #f8fafc; line-height: 1.35; }
+  .benef-box { border: 1px solid #cbd5e1; border-radius: 3px; padding: 4px 6px; font-size: 7.8pt; background: #f8fafc; line-height: 1.35; margin-bottom: 5px; }
+  .clausulas { font-size: 7.5pt; line-height: 1.3; color: #1e293b; text-align: justify; margin-bottom: 5px; }
+  .clausulas p { margin-bottom: 4px; }
+  .observaciones { border: 1px solid #cbd5e1; border-radius: 3px; padding: 4px 6px; font-size: 7.5pt; background: #f8fafc; margin-bottom: 6px; line-height: 1.35; }
   .firmas { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: center; }
   .firma-box { border: 1px solid #cbd5e1; border-radius: 4px; padding: 5px; background: #f8fafc; display: flex; flex-direction: column; align-items: center; min-height: 75px; }
-  .firma-label { font-size: 6.5pt; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.06em; margin-bottom: 3px; }
+  .firma-label { font-size: 7.5pt; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.06em; margin-bottom: 5px; }
   .firma-img-area { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 42px; width: 100%; }
-  .firma-nombre { font-weight: 700; font-size: 7.3pt; text-transform: uppercase; color: #0f172a; border-top: 1px solid #cbd5e1; padding-top: 2px; width: 100%; }
-  .firma-folio { font-size: 6pt; color: #64748b; margin-top: 1px; }
-  .sello-empresa { font-family: Georgia, serif; font-weight: 700; font-size: 7.3pt; color: #0f172a; }
-  .sello-ciudad { font-size: 6pt; color: #64748b; margin-top: 1px; }
+  .firma-nombre { font-weight: 700; font-size: 8.5pt; text-transform: uppercase; color: #0f172a; border-top: 1px solid #cbd5e1; padding-top: 4px; width: 100%; }
+  .firma-folio { font-size: 7pt; color: #64748b; margin-top: 2px; }
+  .sello-empresa { font-family: Georgia, serif; font-weight: 700; font-size: 8.5pt; color: #0f172a; }
+  .sello-ciudad { font-size: 7pt; color: #64748b; margin-top: 2px; }
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 </style>
 </head>
