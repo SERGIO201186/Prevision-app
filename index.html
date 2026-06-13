@@ -276,6 +276,9 @@ self.addEventListener('message', function(event) {
             <button onclick="switchTab('sync')" id="btn-tab-sync" class="admin-only w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition text-slate-400 hover:bg-slate-900 hover:text-slate-200">
                 <i data-lucide="cloud-lightning" class="h-4 w-4"></i> Sincronización Nube
             </button>
+            <button onclick="switchTab('catalogo')" id="btn-tab-catalogo" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition text-slate-400 hover:bg-slate-900 hover:text-slate-200">
+                <i data-lucide="book-open" class="h-4 w-4"></i> Catálogo Digital
+            </button>
             <div class="pt-4 border-t border-slate-800 mt-4">
                 <button id="btn-install-pwa" onclick="triggerPwaInstall()" class="hidden w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs transition text-emerald-400 hover:bg-emerald-950/20 border border-emerald-700/30 mb-1.5">
                     <i data-lucide="download" class="h-3.5 w-3.5"></i> Instalar App en este dispositivo
@@ -288,7 +291,7 @@ self.addEventListener('message', function(event) {
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.3.0 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.4.0 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -631,10 +634,55 @@ self.addEventListener('message', function(event) {
                     </div>
                 </div>
             </section>
+
+            <!-- TAB: CATÁLOGO DIGITAL -->
+            <section id="tab-content-catalogo" class="space-y-6 hidden">
+
+                <!-- Encabezado / Compartir -->
+                <div class="bg-gradient-to-br from-amber-950/40 via-slate-950 to-slate-950 border border-amber-800/30 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h3 class="font-serif font-bold text-xl text-amber-400 flex items-center gap-2"><i data-lucide="book-open"></i> Catálogo Digital de Previsiones</h3>
+                        <p class="text-xs text-slate-400 mt-1.5 max-w-md">Comparte este catálogo con clientes potenciales por WhatsApp. Los precios se actualizan automáticamente en todos los dispositivos al sincronizar.</p>
+                    </div>
+                    <div class="flex flex-col gap-2 w-full sm:w-auto">
+                        <button onclick="shareCatalogWhatsApp()" class="bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold px-5 py-2.5 rounded-lg flex items-center justify-center gap-2">
+                            <i data-lucide="send" class="h-4 w-4"></i> Compartir por WhatsApp
+                        </button>
+                        <button onclick="copyCatalogLink()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-sm font-semibold px-5 py-2.5 rounded-lg flex items-center justify-center gap-2">
+                            <i data-lucide="link" class="h-4 w-4"></i> Copiar Enlace del Catálogo
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Editor de precios — solo admin -->
+                <div id="catalogo-admin-editor" class="admin-only bg-slate-950 border border-slate-800 rounded-xl p-5 space-y-3">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <h4 class="font-serif font-semibold text-slate-200 flex items-center gap-2"><i data-lucide="pencil" class="h-4 w-4 text-amber-500"></i> Editar Precios del Catálogo</h4>
+                        <div class="flex gap-2">
+                            <button onclick="resetCatalogoDefaults()" class="text-[11px] text-slate-500 hover:text-slate-300 border border-slate-700 px-2.5 py-1.5 rounded">Restaurar precios originales</button>
+                            <button onclick="saveCatalogoFromEditor()" class="bg-amber-600 hover:bg-amber-700 text-slate-950 text-xs font-bold px-4 py-1.5 rounded">Guardar Cambios</button>
+                        </div>
+                    </div>
+                    <div id="catalogo-editor-rows" class="space-y-2"></div>
+                    <p class="text-[10px] text-slate-500">El enganche (10%) y las cuotas mensuales/quincenales se recalculan automáticamente al guardar.</p>
+                </div>
+
+                <!-- Vista del catálogo (cards) -->
+                <div id="catalogo-cards-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+
+                <!-- Footer de contacto del catálogo -->
+                <div class="bg-slate-950 border border-slate-800 rounded-xl p-5 text-center space-y-2">
+                    <p class="font-serif font-bold text-amber-400">PARA ATENCIÓN INMEDIATA CONTÁCTANOS</p>
+                    <p class="text-xs text-slate-400">Nicolás Bravo No. 11, Col. Centro · Casa Funeraria: Av. Ruiz Cortines 785</p>
+                    <p class="text-xs text-slate-400">Tel: (228) 468 42 83 &nbsp;|&nbsp; WhatsApp: 228 184 5114</p>
+                    <p class="text-[10px] text-slate-600 mt-2">#SOMOSFUNERALESHUERTA · Calidez y Honestidad</p>
+                </div>
+            </section>
         </div>
     </main>
 
     <!-- MODAL: REGISTRO DE NUEVO CONTRATO -->
+
     <div id="modal-new-contract" class="fixed inset-0 bg-slate-950/90 items-center justify-center p-4 z-50" style="display:none">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col shadow-2xl">
             <div class="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
@@ -1254,15 +1302,214 @@ self.addEventListener('message', function(event) {
         let currentActiveUser = null;
 
         // Lista Oficial de Paquetes Autorizados
-        const PAQUETES = [
-            { id: 'basico', nombre: 'Paquete Básico', precio: 7632, cuotas: 48 },
-            { id: 'plata', nombre: 'Paquete Plata', precio: 14544, cuotas: 48 },
-            { id: 'oro', nombre: 'Paquete Oro', precio: 19920, cuotas: 48 },
-            { id: 'platino', nombre: 'Paquete Platino', precio: 28032, cuotas: 48 },
-            { id: 'diamante', nombre: 'Paquete Diamante', precio: 36528, cuotas: 48 },
-            { id: 'presidencial', nombre: 'Paquete Presidencial', precio: 61008, cuotas: 48 },
-            { id: 'cremacion', nombre: 'Paquete Cremación', precio: 18528, cuotas: 48 }
+        // ═══════════════════════════════════════════════════════════════
+        // CATÁLOGO DE PAQUETES — editable desde Admin > Catálogo
+        // Se guarda en localStorage 'huerta_catalogo' para persistir cambios
+        // ═══════════════════════════════════════════════════════════════
+        const PAQUETES_DEFAULT = [
+            { id: 'basico', nombre: 'Paquete Básico', ataud: 'Ataúd Básico Forrado', precio: 9400, cuotas: 48,
+              incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
+              noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
+            { id: 'plata', nombre: 'Paquete Plata', ataud: 'Ataúd Barnizado / Imagen', precio: 14500, cuotas: 48,
+              incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
+              noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
+            { id: 'oro', nombre: 'Paquete Oro', ataud: 'Ataúd Pino Liso / Grabado', precio: 19900, cuotas: 48,
+              incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
+              noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
+            { id: 'platino', nombre: 'Paquete Platino', ataud: 'Ataúd Cedro Desmontable', precio: 28000, cuotas: 48,
+              incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
+              noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
+            { id: 'diamante', nombre: 'Paquete Diamante', ataud: 'Ataúd Tipo Bóveda de Cedro Lisa o Desmontable', precio: 36500, cuotas: 48,
+              incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
+              noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
+            { id: 'presidencial', nombre: 'Paquete Presidencial', ataud: 'Ataúd Tipo Bóveda de Cedro Lisa o Desmontable', precio: 61000, cuotas: 48,
+              incluye: ['Todo lo del resto de paquetes','Sala de velación en nuestras instalaciones o sala de bosques del recuerdo','Autobús de acompañamiento','Cafetería ilimitada (para 60 personas)','2 coronas florales','Alimento a elegir en nuestras opciones (para 60 personas)'],
+              noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
+            { id: 'cremacion', nombre: 'Paquete Cremación', ataud: 'Urna Básica', precio: 18500, cuotas: 48,
+              incluye: ['Servicio de cremación básico','Urna básica','Crematorio El Ángel, ubicado en La Orduña, Coatepec','Asesoría en trámites'],
+              noIncluye: ['Pago de derechos','Traslados fuera del área de cobertura'] }
         ];
+
+        // Cargar catálogo desde localStorage (si el admin ya editó precios), si no usar default
+        function loadCatalogo() {
+            try {
+                const saved = localStorage.getItem('huerta_catalogo');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                }
+            } catch(e) {}
+            return JSON.parse(JSON.stringify(PAQUETES_DEFAULT));
+        }
+
+        function saveCatalogo(paquetes) {
+            localStorage.setItem('huerta_catalogo', JSON.stringify(paquetes));
+            // Marcar para sincronizar el catálogo a la nube también
+            localStorage.setItem('huerta_catalogo_dirty', '1');
+        }
+
+        let PAQUETES = loadCatalogo();
+
+        // Mapa de cuotas (24 mensualidades / 48 quincenas) — calculado dinámicamente
+        function calcCuotas(precio) {
+            const enganche = Math.round(precio * 0.10);
+            const restante = precio - enganche;
+            return {
+                enganche: enganche,
+                restante: restante,
+                mensual24: Math.round((restante / 24) * 100) / 100,
+                quincenal48: Math.round((restante / 48) * 100) / 100
+            };
+        }
+
+        // ── RENDER CATÁLOGO ──
+        function renderCatalogo() {
+            const container = document.getElementById('catalogo-cards-container');
+            const colores = {
+                basico: 'border-slate-700', plata: 'border-slate-400', oro: 'border-amber-500',
+                platino: 'border-cyan-400', diamante: 'border-purple-400',
+                presidencial: 'border-rose-500', cremacion: 'border-emerald-500'
+            };
+            container.innerHTML = PAQUETES.map(p => {
+                const c = calcCuotas(p.precio);
+                const incluyeHTML = (p.incluye || []).map(i => `<li class="flex gap-1.5"><i data-lucide="check" class="h-3.5 w-3.5 text-emerald-500 flex-shrink-0 mt-0.5"></i><span>${i}</span></li>`).join('');
+                const noIncluyeHTML = (p.noIncluye || []).map(i => `<li class="flex gap-1.5"><i data-lucide="x" class="h-3.5 w-3.5 text-red-500 flex-shrink-0 mt-0.5"></i><span>${i}</span></li>`).join('');
+                return `<div class="bg-slate-950 border-2 ${colores[p.id] || 'border-slate-700'} rounded-2xl overflow-hidden flex flex-col">
+                    <div class="bg-gradient-to-r from-slate-900 to-slate-950 p-4 border-b border-slate-800">
+                        <h4 class="font-serif font-black text-lg text-slate-100 uppercase tracking-wide">${p.nombre}</h4>
+                        <p class="text-[11px] text-amber-500 font-semibold mt-0.5">${p.ataud}</p>
+                    </div>
+                    <div class="p-4 space-y-3 flex-1 flex flex-col">
+                        <div class="text-center bg-amber-600/10 border border-amber-700/30 rounded-xl py-3">
+                            <p class="text-[10px] text-amber-400 uppercase font-bold tracking-wider">Costo Total</p>
+                            <p class="text-2xl font-black text-amber-400">$${p.precio.toLocaleString()}</p>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2 text-center text-[10px]">
+                            <div class="bg-slate-900 rounded-lg p-2">
+                                <p class="text-slate-500 uppercase font-semibold">Enganche 10%</p>
+                                <p class="text-slate-200 font-bold mt-0.5">$${c.enganche.toLocaleString()}</p>
+                            </div>
+                            <div class="bg-slate-900 rounded-lg p-2">
+                                <p class="text-slate-500 uppercase font-semibold">24 Mensual.</p>
+                                <p class="text-slate-200 font-bold mt-0.5">$${c.mensual24.toLocaleString()}</p>
+                            </div>
+                            <div class="bg-slate-900 rounded-lg p-2">
+                                <p class="text-slate-500 uppercase font-semibold">48 Quincenas</p>
+                                <p class="text-slate-200 font-bold mt-0.5">$${c.quincenal48.toLocaleString()}</p>
+                            </div>
+                        </div>
+                        <div class="flex-1 space-y-2">
+                            <div>
+                                <p class="text-[10px] uppercase font-bold text-emerald-500 mb-1">Incluye</p>
+                                <ul class="text-[11px] text-slate-400 space-y-1">${incluyeHTML}</ul>
+                            </div>
+                            ${noIncluyeHTML ? `<div>
+                                <p class="text-[10px] uppercase font-bold text-red-500 mb-1">No incluye</p>
+                                <ul class="text-[11px] text-slate-400 space-y-1">${noIncluyeHTML}</ul>
+                            </div>` : ''}
+                        </div>
+                        <button onclick="shareSinglePlanWhatsApp('${p.id}')" class="mt-auto bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold py-2 rounded-lg flex items-center justify-center gap-1.5">
+                            <i data-lucide="send" class="h-3.5 w-3.5"></i> Compartir este plan
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+
+            // Render editor de admin (si aplica)
+            renderCatalogoEditor();
+            safeCreateIcons();
+        }
+
+        // ── EDITOR DE PRECIOS (ADMIN) ──
+        function renderCatalogoEditor() {
+            const editorContainer = document.getElementById('catalogo-editor-rows');
+            if (!editorContainer) return;
+            editorContainer.innerHTML = PAQUETES.map((p, i) => `
+                <div class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-center bg-slate-900 border border-slate-800 rounded-lg p-3">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-200">${p.nombre}</p>
+                        <p class="text-[10px] text-slate-500">${p.ataud}</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-slate-500">$</span>
+                        <input type="number" id="cat-price-${i}" value="${p.precio}" min="0" step="100"
+                            class="w-28 bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-amber-400 font-bold text-right focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function saveCatalogoFromEditor() {
+            PAQUETES.forEach((p, i) => {
+                const input = document.getElementById('cat-price-' + i);
+                if (input) {
+                    const val = parseFloat(input.value);
+                    if (!isNaN(val) && val >= 0) p.precio = val;
+                }
+            });
+            saveCatalogo(PAQUETES);
+            renderCatalogo();
+            showToast('✅ Precios del catálogo actualizados.', 'success');
+        }
+
+        function resetCatalogoDefaults() {
+            if (!confirm('¿Restaurar todos los precios del catálogo a los valores originales?')) return;
+            PAQUETES = JSON.parse(JSON.stringify(PAQUETES_DEFAULT));
+            saveCatalogo(PAQUETES);
+            renderCatalogo();
+            showToast('Precios restaurados a valores originales.', 'success');
+        }
+
+        // ── COMPARTIR CATÁLOGO ──
+        function buildCatalogText() {
+            let msg = `*📋 CATÁLOGO DE PREVISIONES — SERVICIOS FUNERARIOS HUERTA*\n`;
+            msg += `_Calidez y Honestidad_\n\n`;
+            PAQUETES.forEach(p => {
+                const c = calcCuotas(p.precio);
+                msg += `*${p.nombre.toUpperCase()}* — ${p.ataud}\n`;
+                msg += `💰 Costo Total: $${p.precio.toLocaleString()}\n`;
+                msg += `🔹 Enganche (10%): $${c.enganche.toLocaleString()}\n`;
+                msg += `🔹 24 mensualidades de: $${c.mensual24.toLocaleString()}\n`;
+                msg += `🔹 48 quincenas de: $${c.quincenal48.toLocaleString()}\n\n`;
+            });
+            msg += `_Nuestros planes no tienen caducidad y son transferibles._\n\n`;
+            msg += `📍 Nicolás Bravo No. 11, Col. Centro · Casa Funeraria: Av. Ruiz Cortines 785\n`;
+            msg += `📞 (228) 468 42 83  ·  WhatsApp: 228 184 5114\n`;
+            msg += `#SOMOSFUNERALESHUERTA`;
+            return msg;
+        }
+
+        function shareCatalogWhatsApp() {
+            const msg = buildCatalogText();
+            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+
+        function copyCatalogLink() {
+            const url = window.location.href.split('#')[0] + '#catalogo';
+            navigator.clipboard.writeText(url).then(() => {
+                showToast('✅ Enlace del catálogo copiado.', 'success');
+            }).catch(() => {
+                showToast('No se pudo copiar el enlace.', 'error');
+            });
+        }
+
+        function shareSinglePlanWhatsApp(planId) {
+            const p = PAQUETES.find(x => x.id === planId);
+            if (!p) return;
+            const c = calcCuotas(p.precio);
+            let msg = `*${p.nombre.toUpperCase()}* — Servicios Funerarios Huerta\n`;
+            msg += `${p.ataud}\n\n`;
+            msg += `💰 *Costo Total:* $${p.precio.toLocaleString()}\n`;
+            msg += `🔹 Enganche (10%): $${c.enganche.toLocaleString()}\n`;
+            msg += `🔹 24 mensualidades de: $${c.mensual24.toLocaleString()}\n`;
+            msg += `🔹 48 quincenas de: $${c.quincenal48.toLocaleString()}\n\n`;
+            if (p.incluye && p.incluye.length) {
+                msg += `*Incluye:*\n` + p.incluye.map(i => `✅ ${i}`).join('\n') + `\n\n`;
+            }
+            msg += `_Planes sin caducidad y transferibles._\n`;
+            msg += `📞 WhatsApp: 228 184 5114 · #SOMOSFUNERALESHUERTA`;
+            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+        }
 
         // --- ACCESO DE EMERGENCIA SECRETO (7 clicks en logo FH del login) ---
         let _loginLogoClicks = 0, _loginLogoTimer = null;
@@ -3105,6 +3352,7 @@ function doPost(e) {
             document.getElementById('tab-content-employees').classList.add('hidden');
             document.getElementById('tab-content-sync').classList.add('hidden');
             document.getElementById('tab-content-asesor').classList.add('hidden');
+            document.getElementById('tab-content-catalogo').classList.add('hidden');
 
             // Quitar estilos activos
             document.querySelectorAll('#sidebar-nav button').forEach(b => {
@@ -3138,6 +3386,11 @@ function doPost(e) {
                 title.innerText = "Mi Panel"; 
                 desc.innerText = "Tu actividad, contratos y meta del mes."; 
                 renderAsesorPanel(); 
+            }
+            if (tabId === 'catalogo') {
+                title.innerText = "Catálogo Digital";
+                desc.innerText = "Comparte precios y planes actualizados con tus clientes.";
+                renderCatalogo();
             }
 
             // Cerrar menú móvil si se usa
