@@ -291,7 +291,7 @@ self.addEventListener('message', function(event) {
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.8.1 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.9.0 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -411,6 +411,31 @@ self.addEventListener('message', function(event) {
 
             <!-- TAB: PAGOS -->
             <section id="tab-content-payments" class="space-y-6 hidden">
+                <!-- Filtros de búsqueda -->
+                <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                    <div>
+                        <label class="text-[10px] text-slate-500 uppercase font-semibold block mb-1">Fecha inicio</label>
+                        <input type="date" id="pay-filter-desde" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:outline-none" onchange="renderPaymentsTab()">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-slate-500 uppercase font-semibold block mb-1">Fecha fin</label>
+                        <input type="date" id="pay-filter-hasta" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:outline-none" onchange="renderPaymentsTab()">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-slate-500 uppercase font-semibold block mb-1">Cliente / Folio</label>
+                        <input type="text" id="pay-filter-cliente" placeholder="Nombre o folio..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:outline-none" oninput="renderPaymentsTab()">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-slate-500 uppercase font-semibold block mb-1">Asesor</label>
+                        <select id="pay-filter-asesor" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:outline-none" onchange="renderPaymentsTab()">
+                            <option value="">Todos los asesores</option>
+                        </select>
+                    </div>
+                    <div class="sm:col-span-4 flex justify-between items-center">
+                        <p id="pay-filter-resumen" class="text-[11px] text-slate-400"></p>
+                        <button onclick="clearPayFilters()" class="text-xs text-slate-500 hover:text-slate-300 border border-slate-700 px-3 py-1.5 rounded">Limpiar filtros</button>
+                    </div>
+                </div>
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <!-- Historial general de caja -->
                     <div class="lg:col-span-2 bg-slate-950 p-6 rounded-xl border border-slate-800">
@@ -425,7 +450,8 @@ self.addEventListener('message', function(event) {
                                         <th class="p-3">Fecha</th>
                                         <th class="p-3">Método</th>
                                         <th class="p-3 text-right">Monto</th>
-                                        <th class="p-3 text-center">Acción</th>
+                                        <th class="p-3">Nota</th>
+                                            <th class="p-3 text-center">Acción</th>
                                     </tr>
                                 </thead>
                                 <tbody id="payments-history-tbody" class="divide-y divide-slate-800">
@@ -466,7 +492,8 @@ self.addEventListener('message', function(event) {
                                     <th class="p-3">Usuario (Acceso)</th>
                                     <th class="p-3">Contraseña (Acceso)</th>
                                     <th class="p-3">Estatus</th>
-                                    <th class="p-3 text-center">Acción</th>
+                                    <th class="p-3">Nota</th>
+                                            <th class="p-3 text-center">Acción</th>
                                 </tr>
                             </thead>
                             <tbody id="employees-table-tbody" class="divide-y divide-slate-800">
@@ -2524,41 +2551,44 @@ function doPost(e) {
 
         function applyContractStatus(folio) {
             const selected = document.querySelector('input[name="nuevo-estado"]:checked');
-            if (!selected) return;
+            if (!selected) { showToast('Selecciona un estatus.', 'error'); return; }
             const idx = clients.findIndex(c => c.folio === folio);
             if (idx === -1) return;
-            const nuevoEstado = selected.value; // '' = automático, 'Suspendido', 'Cancelado'
+            const nuevoEstado = selected.value;
 
-            clients[idx].estadoManual = nuevoEstado || null;
-            clients[idx].estado = nuevoEstado || 'Activo';
-
-            // Capturar motivo según el estado elegido
+            // Leer valores del DOM ANTES de cerrar el modal
+            let motivoEstado = '';
             if (nuevoEstado === 'Suspendido') {
                 const sel = document.getElementById('motivo-suspendido-select');
-                clients[idx].motivoEstado = sel ? sel.value : '';
+                motivoEstado = sel ? sel.value : '';
             } else if (nuevoEstado === 'Cancelado') {
                 const sel = document.getElementById('motivo-cancelado-select');
-                clients[idx].motivoEstado = sel ? sel.value : '';
-            } else {
-                clients[idx].motivoEstado = '';
+                motivoEstado = sel ? sel.value : '';
             }
             const detalle = document.getElementById('motivo-detalle');
-            clients[idx].motivoDetalle = detalle ? detalle.value.trim() : '';
-            clients[idx].estadoFecha = new Date().toISOString().split('T')[0];
+            const motivoDetalle = detalle ? detalle.value.trim() : '';
+
+            // Aplicar al objeto
+            clients[idx].estadoManual = nuevoEstado || null;
+            clients[idx].estado       = nuevoEstado || 'Activo';
+            clients[idx].motivoEstado = motivoEstado;
+            clients[idx].motivoDetalle = motivoDetalle;
+            clients[idx].estadoFecha  = new Date().toISOString().split('T')[0];
 
             localStorage.setItem('huerta_clients', JSON.stringify(clients));
-            // Marcar como pendiente de sync
             if (!pendingSyncClients.includes(folio)) {
                 pendingSyncClients.push(folio);
                 localStorage.setItem('huerta_pending_clients', JSON.stringify(pendingSyncClients));
             }
             try { updatePendingBadge(); } catch(e) {}
+
             closeGenericModal();
             renderClientsList();
             updateMetrics();
+
             const labels = { '': 'Activo (automático)', 'Suspendido': 'Suspendido', 'Cancelado': 'Cancelado' };
-            let msg = 'Estatus actualizado: ' + labels[nuevoEstado];
-            if (clients[idx].motivoEstado) msg += ' — ' + clients[idx].motivoEstado;
+            let msg = 'Estatus actualizado: ' + (labels[nuevoEstado] || nuevoEstado);
+            if (motivoEstado) msg += ' — ' + motivoEstado;
             showToast(msg, 'success');
         }
 
@@ -2813,10 +2843,10 @@ function doPost(e) {
                     '<div class="pt-2 border-t border-slate-900 flex flex-wrap gap-2">' +
                         '<button onclick="printContract(\'' + c.folio + '\')" class="bg-amber-600 hover:bg-amber-700 text-slate-950 text-xs font-bold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="printer" class="h-3.5 w-3.5"></i> Imprimir</button>' +
                         '<button onclick="sendWhatsAppContract(\'' + c.folio + '\')" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="send" class="h-3.5 w-3.5"></i> WhatsApp</button>' +
-                        '<button onclick="openPaymentModalWithClient(\'' + c.folio + '\')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="dollar-sign" class="h-3.5 w-3.5"></i> Abonar</button>' +
+                        (status !== 'liquidado' ? '<button onclick="openPaymentModalWithClient(\'' + c.folio + '\')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="dollar-sign" class="h-3.5 w-3.5"></i> Abonar</button>' : '<span class="text-[10px] px-3 py-2 rounded bg-emerald-950/30 text-emerald-500 border border-emerald-700/30 font-bold">✓ LIQUIDADO</span>') +
                         '<button onclick="openClientHistory(\'' + c.folio + '\')" class="bg-slate-900 border border-emerald-700/40 hover:bg-emerald-950/30 text-emerald-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="clock" class="h-3.5 w-3.5"></i> Historial</button>' +
                         '<button onclick="openNewSignatureBox(\'' + c.folio + '\')" class="bg-slate-900 border border-slate-700 hover:text-white text-slate-400 text-xs px-3 py-2 rounded">Firma</button>' +
-                        '<button onclick="changeContractStatus(\'' + c.folio + '\')" class="admin-only bg-slate-900 border border-slate-700 hover:border-amber-500 text-slate-400 hover:text-amber-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="settings-2" class="h-3.5 w-3.5"></i> Estatus</button>' +
+                        (status !== 'liquidado' ? '<button onclick="changeContractStatus(\'' + c.folio + '\')" class="admin-only bg-slate-900 border border-slate-700 hover:border-amber-500 text-slate-400 hover:text-amber-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="settings-2" class="h-3.5 w-3.5"></i> Estatus</button>' : '') +
                     '</div>' +
                 '</div>';
             }).join('');
@@ -2974,23 +3004,69 @@ function doPost(e) {
             showToast('Meta del mes actualizada a ' + val + ' contratos.', 'success');
         }
 
+        function clearPayFilters() {
+            const ids = ['pay-filter-desde','pay-filter-hasta','pay-filter-cliente'];
+            ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            const sel = document.getElementById('pay-filter-asesor');
+            if (sel) sel.value = '';
+            renderPaymentsTab();
+        }
+
                 function renderPaymentsTab() {
+            // ── Poblar select de asesores ──
+            const asesorSelect = document.getElementById('pay-filter-asesor');
+            if (asesorSelect && asesorSelect.options.length <= 1) {
+                const asesores = [...new Set(clients.map(c => c.asesor).filter(Boolean))];
+                asesores.forEach(a => {
+                    const opt = document.createElement('option');
+                    opt.value = a; opt.textContent = a;
+                    asesorSelect.appendChild(opt);
+                });
+            }
+
+            // ── Leer filtros ──
+            const desde  = (document.getElementById('pay-filter-desde')  || {}).value || '';
+            const hasta  = (document.getElementById('pay-filter-hasta')  || {}).value || '';
+            const busqCl = ((document.getElementById('pay-filter-cliente') || {}).value || '').toLowerCase();
+            const asesor = (document.getElementById('pay-filter-asesor')  || {}).value || '';
+
+            // ── Filtrar pagos ──
+            let filtered = payments.slice().reverse();
+            if (desde)  filtered = filtered.filter(p => p.fecha >= desde);
+            if (hasta)  filtered = filtered.filter(p => p.fecha <= hasta);
+            if (busqCl) filtered = filtered.filter(p => {
+                const cl = clients.find(c => c.id === p.clienteId || c.folio === p.clienteId);
+                return p.clienteId.toLowerCase().includes(busqCl) ||
+                       (cl && cl.nombre.toLowerCase().includes(busqCl));
+            });
+            if (asesor) filtered = filtered.filter(p => {
+                const cl = clients.find(c => c.id === p.clienteId || c.folio === p.clienteId);
+                return cl && cl.asesor === asesor;
+            });
+
+            // ── Resumen ──
+            const total = filtered.reduce((s, p) => s + Number(p.monto), 0);
+            const resumenEl = document.getElementById('pay-filter-resumen');
+            if (resumenEl) resumenEl.innerText = `${filtered.length} abono(s) · Total: $${total.toLocaleString()}`;
+
             // Historial General de Caja
             const tbody = document.getElementById('payments-history-tbody');
-            if (payments.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500 text-xs">No hay abonos en caja.</td></tr>`;
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500 text-xs">No hay abonos con los filtros seleccionados.</td></tr>`;
             } else {
-                tbody.innerHTML = payments.slice().reverse().map(p => {
+                tbody.innerHTML = filtered.map(p => {
                     const cl = clients.find(c => c.id === p.clienteId || c.folio === p.clienteId);
                     return `
                         <tr class="border-b border-slate-900 hover:bg-slate-950/40 text-xs">
                             <td class="p-3">
                                 <p class="font-bold text-slate-100">${cl ? cl.nombre : 'Cliente Desconocido'}</p>
                                 <p class="text-[10px] text-amber-500 font-mono font-bold">${p.clienteId}</p>
+                                ${cl ? '<p class="text-[10px] text-slate-500">' + (cl.asesor || '') + '</p>' : ''}
                             </td>
-                            <td class="p-3">${p.fecha}</td>
+                            <td class="p-3 whitespace-nowrap">${p.fecha}</td>
                             <td class="p-3">${p.metodo}</td>
-                            <td class="p-3 text-right font-bold text-emerald-500">$${p.monto.toLocaleString()}</td>
+                            <td class="p-3 text-right font-bold text-emerald-500">$${Number(p.monto).toLocaleString()}</td>
+                            <td class="p-3 text-xs text-slate-400">${p.nota || ''}</td>
                             <td class="p-3 text-center flex gap-1 justify-center">
                                 <button onclick="reprintPayment('${p.id}')" class="text-amber-400 hover:text-amber-300 p-1" title="Reimprimir comprobante"><i data-lucide="printer" class="h-4 w-4"></i></button>
                                 <button onclick="deletePayment('${p.id}')" class="text-red-400 hover:text-red-300 p-1" title="Eliminar abono"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
@@ -3005,20 +3081,27 @@ function doPost(e) {
             if (clients.length === 0) {
                 balancesList.innerHTML = `<p class="text-xs text-slate-500 py-3 text-center">No hay clientes de previsión.</p>`;
             } else {
-                balancesList.innerHTML = clients.map(c => {
-                    const balance = c.precioTotal - c.montoPagado;
-                    return `
-                        <div class="bg-slate-900 p-3 rounded-lg border border-slate-850 flex justify-between items-center text-xs">
-                            <div>
-                                <p class="font-bold text-slate-200">${c.nombre}</p>
-                                <p class="text-[10px] text-slate-400">Restan: <strong class="text-amber-500">$${balance.toLocaleString()}</strong></p>
+                const activeClients = clients.filter(c => getContractStatus(c) !== 'liquidado' && getContractStatus(c) !== 'cancelado');
+                if (activeClients.length === 0) {
+                    balancesList.innerHTML = '<p class="text-xs text-slate-500 py-3 text-center">No hay contratos activos con saldo pendiente.</p>';
+                } else {
+                    balancesList.innerHTML = activeClients.map(c => {
+                        const balance = c.precioTotal - c.montoPagado;
+                        const st = getContractStatus(c);
+                        return `
+                            <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
+                                <div>
+                                    <p class="font-bold text-slate-200">${c.nombre}</p>
+                                    <p class="text-amber-500 font-mono text-[10px]">${c.folio}</p>
+                                    <p class="text-[10px] text-slate-400">Pendiente: <strong class="text-amber-400">$${balance.toLocaleString()}</strong></p>
+                                </div>
+                                <button onclick="openPaymentModalWithClient('${c.folio}')" class="bg-emerald-700/20 hover:bg-emerald-700/30 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded font-semibold">
+                                    Cobrar
+                                </button>
                             </div>
-                            <button onclick="openPaymentModalWithClient('${c.folio}')" class="bg-emerald-700/20 hover:bg-emerald-700/30 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded font-semibold">
-                                Cobrar
-                            </button>
-                        </div>
-                    `;
-                }).join('');
+                        `;
+                    }).join('');
+                }
             }
             safeCreateIcons();
         }
