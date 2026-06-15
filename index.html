@@ -291,7 +291,7 @@ self.addEventListener('message', function(event) {
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.9.0 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.9.1 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -2496,42 +2496,64 @@ function doPost(e) {
         function changeContractStatus(folio) {
             const c = clients.find(cl => cl.folio === folio);
             if (!c) return;
-            const opciones = [
-                { val: '', label: '● Activo (automático)',    desc: 'El sistema calcula Vigente / Atrasado / Liquidado según pagos' },
-                { val: 'Suspendido', label: '⏸ Suspendido',  desc: 'Pagos en pausa temporal — no se cuenta como atrasado' },
-                { val: 'Cancelado',  label: '✕ Cancelado',   desc: 'Contrato dado de baja — queda en el historial pero inactivo' },
-            ];
-            const opcionesHTML = opciones.map(o =>
-                `<label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition ${(c.estadoManual || '') === o.val ? 'border-amber-500 bg-amber-950/30' : 'border-slate-700 hover:border-slate-500'}">
-                    <input type="radio" name="nuevo-estado" value="${o.val}" ${(c.estadoManual || '') === o.val ? 'checked' : ''} class="mt-0.5 accent-amber-500" onchange="toggleMotivoBox(this.value)">
-                    <div>
-                        <p class="text-sm font-semibold text-slate-200">${o.label}</p>
-                        <p class="text-xs text-slate-500 mt-0.5">${o.desc}</p>
-                    </div>
-                </label>`
-            ).join('');
 
-            const motivoOptsSusp = MOTIVOS_SUSPENSION.map(m => `<option value="${m}" ${c.motivoEstado === m ? 'selected' : ''}>${m}</option>`).join('');
-            const motivoOptsCanc = MOTIVOS_CANCELACION.map(m => `<option value="${m}" ${c.motivoEstado === m ? 'selected' : ''}>${m}</option>`).join('');
+            // Estado actual como valor inicial del selector
+            let estadoSeleccionado = c.estadoManual || '';
+
+            const opciones = [
+                { val: '', label: '● Activo (automático)',   desc: 'El sistema calcula Vigente / Atrasado / Liquidado según pagos' },
+                { val: 'Suspendido', label: '⏸ Suspendido', desc: 'Pagos en pausa temporal — no se cuenta como atrasado' },
+                { val: 'Cancelado',  label: '✕ Cancelado',  desc: 'Contrato dado de baja — queda en el historial pero inactivo' },
+            ];
+
+            const motivoOptsSusp = MOTIVOS_SUSPENSION.map(m =>
+                `<option value="${m}" ${c.motivoEstado === m ? 'selected' : ''}>${m}</option>`).join('');
+            const motivoOptsCanc = MOTIVOS_CANCELACION.map(m =>
+                `<option value="${m}" ${c.motivoEstado === m ? 'selected' : ''}>${m}</option>`).join('');
             const estadoActual = c.estadoManual || '';
             const mostrarMotivo = estadoActual === 'Suspendido' || estadoActual === 'Cancelado';
 
-            const bodyHTML =
-                `<div class="space-y-2 py-2">${opcionesHTML}</div>
-                 <div id="motivo-estado-box" class="${mostrarMotivo ? '' : 'hidden'} space-y-2 bg-slate-900 border border-slate-700 rounded-lg p-3 mt-2">
-                    <p class="text-xs font-semibold text-slate-300">Motivo:</p>
-                    <select id="motivo-suspendido-select" class="${estadoActual === 'Suspendido' ? '' : 'hidden'} w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:outline-none">
-                        ${motivoOptsSusp}
-                    </select>
-                    <select id="motivo-cancelado-select" class="${estadoActual === 'Cancelado' ? '' : 'hidden'} w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:outline-none">
-                        ${motivoOptsCanc}
-                    </select>
-                    <textarea id="motivo-detalle" placeholder="Detalles adicionales (opcional)..." class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:outline-none" rows="2">${c.motivoDetalle || ''}</textarea>
-                 </div>
-                 <div class="flex gap-3 mt-4">
-                    <button onclick="applyContractStatus('${folio}')" class="flex-1 bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold py-2.5 rounded-lg text-sm">Guardar Estatus</button>
-                    <button onclick="closeGenericModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg text-sm">Cancelar</button>
-                 </div>`;
+            // Usar un select en lugar de radios — más confiable en móvil
+            const opcionesSelectHTML = opciones.map(o =>
+                `<option value="${o.val}" ${estadoActual === o.val ? 'selected' : ''}>${o.label}</option>`
+            ).join('');
+
+            const bodyHTML = `
+                <div class="space-y-3 py-2">
+                    <div>
+                        <label class="text-xs text-slate-400 font-semibold uppercase block mb-1.5">Nuevo Estatus</label>
+                        <select id="nuevo-estado-select" onchange="toggleMotivoBox(this.value)"
+                            class="w-full bg-slate-900 border border-amber-600/40 rounded-lg p-3 text-sm text-slate-100 font-semibold focus:outline-none focus:border-amber-500">
+                            ${opcionesSelectHTML}
+                        </select>
+                    </div>
+                    <div id="motivo-estado-box" class="${mostrarMotivo ? '' : 'hidden'} space-y-2 bg-slate-900 border border-slate-700 rounded-lg p-3">
+                        <label class="text-xs font-semibold text-slate-300 block">Motivo</label>
+                        <select id="motivo-suspendido-select" class="${estadoActual === 'Suspendido' ? '' : 'hidden'} w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:outline-none">
+                            ${motivoOptsSusp}
+                        </select>
+                        <select id="motivo-cancelado-select" class="${estadoActual === 'Cancelado' ? '' : 'hidden'} w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:outline-none">
+                            ${motivoOptsCanc}
+                        </select>
+                        <textarea id="motivo-detalle" placeholder="Detalles adicionales (opcional)..."
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-200 focus:outline-none" rows="2">${c.motivoDetalle || ''}</textarea>
+                    </div>
+                    <div class="bg-slate-900 rounded-lg p-3 text-[11px] text-slate-400 border border-slate-800">
+                        <span class="font-bold text-slate-300">Estatus actual:</span> ${estadoActual || 'Activo (automático)'}
+                        ${c.motivoEstado ? ' — ' + c.motivoEstado : ''}
+                        ${c.estadoFecha ? ' <span class="text-slate-600">(' + c.estadoFecha + ')</span>' : ''}
+                    </div>
+                    <div class="flex gap-3 pt-1">
+                        <button onclick="applyContractStatus('${folio}')"
+                            class="flex-1 bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold py-3 rounded-lg text-sm">
+                            Guardar Estatus
+                        </button>
+                        <button onclick="closeGenericModal()"
+                            class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3 rounded-lg text-sm">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>`;
             openGenericModal('Cambiar Estatus del Contrato', c.nombre + ' · ' + c.folio, bodyHTML);
         }
 
@@ -2542,21 +2564,23 @@ function doPost(e) {
             if (!box) return;
             if (value === 'Suspendido' || value === 'Cancelado') {
                 box.classList.remove('hidden');
-                suspSelect.classList.toggle('hidden', value !== 'Suspendido');
-                cancSelect.classList.toggle('hidden', value !== 'Cancelado');
+                if (suspSelect) suspSelect.classList.toggle('hidden', value !== 'Suspendido');
+                if (cancSelect) cancSelect.classList.toggle('hidden', value !== 'Cancelado');
             } else {
                 box.classList.add('hidden');
             }
         }
 
         function applyContractStatus(folio) {
-            const selected = document.querySelector('input[name="nuevo-estado"]:checked');
-            if (!selected) { showToast('Selecciona un estatus.', 'error'); return; }
+            // Leer el select (más confiable que querySelector de radios en móvil)
+            const selectEl = document.getElementById('nuevo-estado-select');
+            if (!selectEl) { showToast('No se pudo leer el estatus. Intenta de nuevo.', 'error'); return; }
+            const nuevoEstado = selectEl.value;
+
             const idx = clients.findIndex(c => c.folio === folio);
             if (idx === -1) return;
-            const nuevoEstado = selected.value;
 
-            // Leer valores del DOM ANTES de cerrar el modal
+            // Leer motivo ANTES de cerrar
             let motivoEstado = '';
             if (nuevoEstado === 'Suspendido') {
                 const sel = document.getElementById('motivo-suspendido-select');
@@ -2568,12 +2592,12 @@ function doPost(e) {
             const detalle = document.getElementById('motivo-detalle');
             const motivoDetalle = detalle ? detalle.value.trim() : '';
 
-            // Aplicar al objeto
-            clients[idx].estadoManual = nuevoEstado || null;
-            clients[idx].estado       = nuevoEstado || 'Activo';
-            clients[idx].motivoEstado = motivoEstado;
+            // Guardar
+            clients[idx].estadoManual  = nuevoEstado || null;
+            clients[idx].estado        = nuevoEstado || 'Activo';
+            clients[idx].motivoEstado  = motivoEstado;
             clients[idx].motivoDetalle = motivoDetalle;
-            clients[idx].estadoFecha  = new Date().toISOString().split('T')[0];
+            clients[idx].estadoFecha   = new Date().toISOString().split('T')[0];
 
             localStorage.setItem('huerta_clients', JSON.stringify(clients));
             if (!pendingSyncClients.includes(folio)) {
@@ -2587,7 +2611,7 @@ function doPost(e) {
             updateMetrics();
 
             const labels = { '': 'Activo (automático)', 'Suspendido': 'Suspendido', 'Cancelado': 'Cancelado' };
-            let msg = 'Estatus actualizado: ' + (labels[nuevoEstado] || nuevoEstado);
+            let msg = '✅ Estatus guardado: ' + (labels[nuevoEstado] !== undefined ? labels[nuevoEstado] : nuevoEstado);
             if (motivoEstado) msg += ' — ' + motivoEstado;
             showToast(msg, 'success');
         }
