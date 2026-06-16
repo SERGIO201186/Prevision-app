@@ -276,9 +276,9 @@ self.addEventListener('message', function(event) {
             <button onclick="switchTab('sync')" id="btn-tab-sync" class="admin-only w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition text-slate-400 hover:bg-slate-900 hover:text-slate-200">
                 <i data-lucide="cloud-lightning" class="h-4 w-4"></i> Sincronización Nube
             </button>
-            <button onclick="switchTab('catalogo')" id="btn-tab-catalogo" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition text-slate-400 hover:bg-slate-900 hover:text-slate-200">
-                <i data-lucide="book-open" class="h-4 w-4"></i> Catálogo Digital
-            </button>
+            <a href="https://sergio201186.github.io/tienda_huerta/" target="_blank" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition text-emerald-400 hover:bg-emerald-950/20 border border-emerald-800/30 mt-1">
+                <i data-lucide="shopping-bag" class="h-4 w-4"></i> Tienda en Línea
+            </a>
             <div class="pt-4 border-t border-slate-800 mt-4">
                 <button id="btn-install-pwa" onclick="triggerPwaInstall()" class="hidden w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs transition text-emerald-400 hover:bg-emerald-950/20 border border-emerald-700/30 mb-1.5">
                     <i data-lucide="download" class="h-3.5 w-3.5"></i> Instalar App en este dispositivo
@@ -291,7 +291,7 @@ self.addEventListener('message', function(event) {
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.9.1 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.10.0 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -1369,25 +1369,25 @@ self.addEventListener('message', function(event) {
         // Se guarda en localStorage 'huerta_catalogo' para persistir cambios
         // ═══════════════════════════════════════════════════════════════
         const PAQUETES_DEFAULT = [
-            { id: 'basico', nombre: 'Paquete Básico', ataud: 'Ataúd Básico Forrado', precio: 9400, cuotas: 48, imagen: '',
+            { id: 'basico', tiendaId: 'HRT-001', nombre: 'Paquete Básico', ataud: 'Ataúd Básico Forrado', precio: 9400, cuotas: 48, imagen: '',
               incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'plata', nombre: 'Paquete Plata', ataud: 'Ataúd Barnizado / Imagen', precio: 14500, cuotas: 48, imagen: '',
+            { id: 'plata', tiendaId: 'HRT-002', nombre: 'Paquete Plata', ataud: 'Ataúd Barnizado / Imagen', precio: 14500, cuotas: 48, imagen: '',
               incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'oro', nombre: 'Paquete Oro', ataud: 'Ataúd Pino Liso / Grabado', precio: 19900, cuotas: 48, imagen: '',
+            { id: 'oro', tiendaId: 'HRT-003', nombre: 'Paquete Oro', ataud: 'Ataúd Pino Liso / Grabado', precio: 19900, cuotas: 48, imagen: '',
               incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'platino', nombre: 'Paquete Platino', ataud: 'Ataúd Cedro Desmontable', precio: 28000, cuotas: 48, imagen: '',
+            { id: 'platino', tiendaId: 'HRT-004', nombre: 'Paquete Platino', ataud: 'Ataúd Cedro Desmontable', precio: 28000, cuotas: 48, imagen: '',
               incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'diamante', nombre: 'Paquete Diamante', ataud: 'Ataúd Tipo Bóveda de Cedro Lisa o Desmontable', precio: 36500, cuotas: 48, imagen: '',
+            { id: 'diamante', tiendaId: 'HRT-005', nombre: 'Paquete Diamante', ataud: 'Ataúd Tipo Bóveda de Cedro Lisa o Desmontable', precio: 36500, cuotas: 48, imagen: '',
               incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'presidencial', nombre: 'Paquete Presidencial', ataud: 'Ataúd Tipo Bóveda de Cedro Lisa o Desmontable', precio: 61000, cuotas: 48, imagen: '',
+            { id: 'presidencial', tiendaId: 'HRT-006', nombre: 'Paquete Presidencial', ataud: 'Ataúd Tipo Bóveda de Cedro Lisa o Desmontable', precio: 61000, cuotas: 48, imagen: '',
               incluye: ['Todo lo del resto de paquetes','Sala de velación en nuestras instalaciones o sala de bosques del recuerdo','Autobús de acompañamiento','Cafetería ilimitada (para 60 personas)','2 coronas florales','Alimento a elegir en nuestras opciones (para 60 personas)'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'cremacion', nombre: 'Paquete Cremación', ataud: 'Urna Básica', precio: 18500, cuotas: 48, imagen: '',
+            { id: 'cremacion', tiendaId: 'HRT-007', nombre: 'Paquete Cremación', ataud: 'Urna Básica', precio: 18500, cuotas: 48, imagen: '',
               incluye: ['Servicio de cremación básico','Urna básica','Crematorio El Ángel, ubicado en La Orduña, Coatepec','Asesoría en trámites'],
               noIncluye: ['Pago de derechos','Traslados fuera del área de cobertura'] }
         ];
@@ -2592,14 +2592,18 @@ function doPost(e) {
             const detalle = document.getElementById('motivo-detalle');
             const motivoDetalle = detalle ? detalle.value.trim() : '';
 
-            // Guardar
+            // Guardar — modificar el array global directamente y persistir
             clients[idx].estadoManual  = nuevoEstado || null;
             clients[idx].estado        = nuevoEstado || 'Activo';
             clients[idx].motivoEstado  = motivoEstado;
             clients[idx].motivoDetalle = motivoDetalle;
             clients[idx].estadoFecha   = new Date().toISOString().split('T')[0];
 
-            localStorage.setItem('huerta_clients', JSON.stringify(clients));
+            // Guardar en localStorage y recargar el array desde ahí para garantizar consistencia
+            const jsonStr = JSON.stringify(clients);
+            localStorage.setItem('huerta_clients', jsonStr);
+            clients = JSON.parse(localStorage.getItem('huerta_clients')) || [];
+
             if (!pendingSyncClients.includes(folio)) {
                 pendingSyncClients.push(folio);
                 localStorage.setItem('huerta_pending_clients', JSON.stringify(pendingSyncClients));
@@ -2607,13 +2611,28 @@ function doPost(e) {
             try { updatePendingBadge(); } catch(e) {}
 
             closeGenericModal();
-            renderClientsList();
-            updateMetrics();
 
-            const labels = { '': 'Activo (automático)', 'Suspendido': 'Suspendido', 'Cancelado': 'Cancelado' };
-            let msg = '✅ Estatus guardado: ' + (labels[nuevoEstado] !== undefined ? labels[nuevoEstado] : nuevoEstado);
-            if (motivoEstado) msg += ' — ' + motivoEstado;
-            showToast(msg, 'success');
+            // Pequeño delay para que el DOM del modal desaparezca antes de re-renderizar
+            setTimeout(function() {
+                renderClientsList();
+                updateMetrics();
+                const labels = { '': 'Activo (automático)', 'Suspendido': 'Suspendido', 'Cancelado': 'Cancelado' };
+                let msg = '✅ Estatus guardado: ' + (labels[nuevoEstado] !== undefined ? labels[nuevoEstado] : nuevoEstado);
+                if (motivoEstado) msg += ' — ' + motivoEstado;
+                showToast(msg, 'success');
+            }, 80);
+        }
+
+        function openTiendaPaquete(folio) {
+            const c = clients.find(cl => cl.folio === folio);
+            if (!c) return;
+            // Buscar el tiendaId del paquete correspondiente
+            const paq = PAQUETES.find(p => p.id === c.paqueteId || p.nombre === c.nombrePaquete);
+            const tiendaId = paq && paq.tiendaId ? paq.tiendaId : '';
+            const url = tiendaId
+                ? `https://sergio201186.github.io/tienda_huerta/?producto=${tiendaId}`
+                : `https://sergio201186.github.io/tienda_huerta/`;
+            window.open(url, '_blank');
         }
 
         // ── RESPALDO DE FIRMAS DIGITALES ──
@@ -2870,6 +2889,7 @@ function doPost(e) {
                         (status !== 'liquidado' ? '<button onclick="openPaymentModalWithClient(\'' + c.folio + '\')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="dollar-sign" class="h-3.5 w-3.5"></i> Abonar</button>' : '<span class="text-[10px] px-3 py-2 rounded bg-emerald-950/30 text-emerald-500 border border-emerald-700/30 font-bold">✓ LIQUIDADO</span>') +
                         '<button onclick="openClientHistory(\'' + c.folio + '\')" class="bg-slate-900 border border-emerald-700/40 hover:bg-emerald-950/30 text-emerald-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="clock" class="h-3.5 w-3.5"></i> Historial</button>' +
                         '<button onclick="openNewSignatureBox(\'' + c.folio + '\')" class="bg-slate-900 border border-slate-700 hover:text-white text-slate-400 text-xs px-3 py-2 rounded">Firma</button>' +
+                        '<button onclick="openTiendaPaquete(\'' + c.folio + '\')" class="bg-slate-900 border border-emerald-800/50 hover:border-emerald-500 text-emerald-500 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="shopping-bag" class="h-3.5 w-3.5"></i> Tienda</button>' +
                         (status !== 'liquidado' ? '<button onclick="changeContractStatus(\'' + c.folio + '\')" class="admin-only bg-slate-900 border border-slate-700 hover:border-amber-500 text-slate-400 hover:text-amber-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="settings-2" class="h-3.5 w-3.5"></i> Estatus</button>' : '') +
                     '</div>' +
                 '</div>';
@@ -3776,7 +3796,7 @@ function doPost(e) {
             document.getElementById('tab-content-employees').classList.add('hidden');
             document.getElementById('tab-content-sync').classList.add('hidden');
             document.getElementById('tab-content-asesor').classList.add('hidden');
-            document.getElementById('tab-content-catalogo').classList.add('hidden');
+
 
             // Quitar estilos activos
             document.querySelectorAll('#sidebar-nav button').forEach(b => {
@@ -3811,11 +3831,7 @@ function doPost(e) {
                 desc.innerText = "Tu actividad, contratos y meta del mes."; 
                 renderAsesorPanel(); 
             }
-            if (tabId === 'catalogo') {
-                title.innerText = "Catálogo Digital";
-                desc.innerText = "Comparte precios y planes actualizados con tus clientes.";
-                renderCatalogo();
-            }
+
 
             // Cerrar menú móvil si se usa
             if (window.innerWidth < 768) {
