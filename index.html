@@ -291,7 +291,7 @@ self.addEventListener('message', function(event) {
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.10.0 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.11.0 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -3412,7 +3412,7 @@ function doPost(e) {
   .estado-item { border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; text-align: center; }
   .firmas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; text-align: center; margin-top: 6px; }
   .firma-box { border: 1px solid #cbd5e1; border-radius: 4px; padding: 10px; background: #f8fafc; min-height: 70px; display: flex; flex-direction: column; justify-content: flex-end; }
-  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } html, body { height: auto !important; } .clausulas, .observaciones, .partes, .benef-box, .servicio-box { page-break-inside: avoid; } }
 </style>
 </head>
 <body>
@@ -3498,13 +3498,30 @@ function doPost(e) {
 </body>
 </html>`;
 
-            const printWin = window.open('', '_blank', 'width=800,height=700');
-            if (!printWin) {
-                showToast('Por favor permite las ventanas emergentes para imprimir.', 'error');
-                return;
+            // ── Imprimir usando iframe oculto (no abre ventana emergente, funciona en PWA) ──
+            let iframeR = document.getElementById('_print_iframe_receipt');
+            if (!iframeR) {
+                iframeR = document.createElement('iframe');
+                iframeR.id = '_print_iframe_receipt';
+                iframeR.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0;';
+                document.body.appendChild(iframeR);
             }
-            printWin.document.write(htmlReceipt);
-            printWin.document.close();
+            const iDocR = iframeR.contentWindow.document;
+            iDocR.open();
+            iDocR.write(htmlReceipt);
+            iDocR.close();
+            iframeR.onload = function() {
+                setTimeout(function() {
+                    try {
+                        iframeR.contentWindow.focus();
+                        iframeR.contentWindow.print();
+                    } catch(e) {
+                        const w = window.open('', '_blank', 'width=800,height=700');
+                        if (w) { w.document.write(htmlReceipt); w.document.close(); }
+                        else { showToast('Permite ventanas emergentes para imprimir.', 'error'); }
+                    }
+                }, 300);
+            };
         }
 
         function reprintPayment(payId) {
@@ -3594,36 +3611,37 @@ function doPost(e) {
 <meta charset="UTF-8">
 <title>Contrato ${c.folio} - Servicios Funerarios Huerta</title>
 <style>
-  @page { size: letter; margin: 1.3cm; }
+  @page { size: letter; margin: 0.9cm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #111; background: #fff; }
-  .header-bar { background: #e07b00; color: #fff; text-align: center; font-weight: 900; font-size: 11pt; letter-spacing: 0.08em; padding: 4px 0; margin-bottom: 6px; text-transform: uppercase; }
-  .membrete { display: flex; justify-content: space-between; align-items: flex-start; border: 1.5px solid #1e293b; border-radius: 4px; padding: 5px 8px; margin-bottom: 4px; background: #f9fafb; }
+  body { font-family: Arial, sans-serif; font-size: 8.4pt; color: #111; background: #fff; line-height: 1.15; }
+  .header-bar { background: #e07b00; color: #fff; text-align: center; font-weight: 900; font-size: 9.5pt; letter-spacing: 0.06em; padding: 3px 0; margin-bottom: 4px; text-transform: uppercase; }
+  .membrete { display: flex; justify-content: space-between; align-items: flex-start; border: 1.5px solid #1e293b; border-radius: 4px; padding: 4px 7px; margin-bottom: 3px; background: #f9fafb; }
   .membrete-logo { border: 2px solid #0f172a; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 3px; background: #fff; flex-shrink: 0; }
-  .membrete-nombre { font-family: Georgia, serif; font-weight: 900; font-size: 12pt; color: #0f172a; text-transform: uppercase; line-height: 1.1; }
-  .membrete-slogan { font-size: 7.2pt; color: #d97706; font-style: italic; font-weight: 700; margin: 1px 0; }
-  .membrete-datos { font-size: 7.2pt; color: #475569; line-height: 1.4; }
-  .folio-box { border: 1.5px solid #e07b00; border-radius: 4px; padding: 4px 8px; text-align: center; min-width: 100px; background: #fff7ed; flex-shrink: 0; }
-  .folio-label { font-size: 6.6pt; text-transform: uppercase; font-weight: 800; color: #92400e; letter-spacing: 0.07em; }
-  .folio-num { font-size: 14pt; font-weight: 900; font-family: monospace; color: #e07b00; margin: 2px 0; }
-  .folio-fecha { font-size: 6.6pt; color: #92400e; font-weight: 700; }
-  .titulo-contrato { text-align: center; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; padding: 2px 0; margin-bottom: 4px; }
-  .titulo-contrato-principal { font-family: Georgia, serif; font-weight: 700; font-size: 9.8pt; text-transform: uppercase; color: #0f172a; letter-spacing: 0.05em; }
-  .titulo-sub { font-size: 7.2pt; color: #64748b; margin-top: 2px; }
-  .partes { display: grid; grid-template-columns: 1fr 2fr; gap: 4px; margin-bottom: 3px; }
-  .parte-box { border: 1px solid #cbd5e1; border-radius: 3px; padding: 4px 6px; font-size: 7.8pt; background: #f8fafc; line-height: 1.35; }
-  .benef-box { border: 1px solid #cbd5e1; border-radius: 3px; padding: 4px 6px; font-size: 7.8pt; background: #f8fafc; line-height: 1.35; margin-bottom: 5px; }
-  .clausulas { font-size: 7.5pt; line-height: 1.3; color: #1e293b; text-align: justify; margin-bottom: 5px; }
-  .clausulas p { margin-bottom: 4px; }
-  .observaciones { border: 1px solid #cbd5e1; border-radius: 3px; padding: 4px 6px; font-size: 7.5pt; background: #f8fafc; margin-bottom: 6px; line-height: 1.35; }
-  .firmas { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: center; }
-  .firma-box { border: 1px solid #cbd5e1; border-radius: 4px; padding: 5px; background: #f8fafc; display: flex; flex-direction: column; align-items: center; min-height: 75px; }
-  .firma-label { font-size: 7.5pt; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.06em; margin-bottom: 5px; }
-  .firma-img-area { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 42px; width: 100%; }
-  .firma-nombre { font-weight: 700; font-size: 8.5pt; text-transform: uppercase; color: #0f172a; border-top: 1px solid #cbd5e1; padding-top: 4px; width: 100%; }
-  .firma-folio { font-size: 7pt; color: #64748b; margin-top: 2px; }
-  .sello-empresa { font-family: Georgia, serif; font-weight: 700; font-size: 8.5pt; color: #0f172a; }
-  .sello-ciudad { font-size: 7pt; color: #64748b; margin-top: 2px; }
+  .membrete-nombre { font-family: Georgia, serif; font-weight: 900; font-size: 10.5pt; color: #0f172a; text-transform: uppercase; line-height: 1.05; }
+  .membrete-slogan { font-size: 6.3pt; color: #d97706; font-style: italic; font-weight: 700; margin: 1px 0; }
+  .membrete-datos { font-size: 6.3pt; color: #475569; line-height: 1.3; }
+  .folio-box { border: 1.5px solid #e07b00; border-radius: 4px; padding: 3px 7px; text-align: center; min-width: 95px; background: #fff7ed; flex-shrink: 0; }
+  .folio-label { font-size: 5.8pt; text-transform: uppercase; font-weight: 800; color: #92400e; letter-spacing: 0.06em; }
+  .folio-num { font-size: 12pt; font-weight: 900; font-family: monospace; color: #e07b00; margin: 1px 0; }
+  .folio-fecha { font-size: 5.8pt; color: #92400e; font-weight: 700; }
+  .titulo-contrato { text-align: center; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; padding: 2px 0; margin-bottom: 3px; }
+  .titulo-contrato-principal { font-family: Georgia, serif; font-weight: 700; font-size: 8.6pt; text-transform: uppercase; color: #0f172a; letter-spacing: 0.04em; }
+  .titulo-sub { font-size: 6.3pt; color: #64748b; margin-top: 1px; }
+  .partes { display: grid; grid-template-columns: 1fr 2fr; gap: 3px; margin-bottom: 2px; }
+  .parte-box { border: 1px solid #cbd5e1; border-radius: 3px; padding: 3px 5px; font-size: 6.9pt; background: #f8fafc; line-height: 1.25; }
+  .benef-box { border: 1px solid #cbd5e1; border-radius: 3px; padding: 3px 5px; font-size: 6.9pt; background: #f8fafc; line-height: 1.25; margin-bottom: 2px; }
+  .servicio-box { border: 1.5px solid #e07b00; border-radius: 3px; padding: 3px 5px; font-size: 6.9pt; background: #fff7ed; line-height: 1.25; margin-bottom: 3px; }
+  .clausulas { font-size: 6.4pt; line-height: 1.18; color: #1e293b; text-align: justify; margin-bottom: 3px; }
+  .clausulas p { margin-bottom: 2.5px; }
+  .observaciones { border: 1px solid #cbd5e1; border-radius: 3px; padding: 3px 5px; font-size: 6.4pt; background: #f8fafc; margin-bottom: 4px; line-height: 1.25; }
+  .firmas { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: center; page-break-inside: avoid; }
+  .firma-box { border: 1px solid #cbd5e1; border-radius: 4px; padding: 4px; background: #f8fafc; display: flex; flex-direction: column; align-items: center; min-height: 58px; }
+  .firma-label { font-size: 6.4pt; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 3px; }
+  .firma-img-area { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 32px; width: 100%; }
+  .firma-nombre { font-weight: 700; font-size: 7.3pt; text-transform: uppercase; color: #0f172a; border-top: 1px solid #cbd5e1; padding-top: 3px; width: 100%; }
+  .firma-folio { font-size: 6pt; color: #64748b; margin-top: 1px; }
+  .sello-empresa { font-family: Georgia, serif; font-weight: 700; font-size: 7.3pt; color: #0f172a; }
+  .sello-ciudad { font-size: 6pt; color: #64748b; margin-top: 1px; }
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 </style>
 </head>
@@ -3659,13 +3677,14 @@ function doPost(e) {
     <div class="parte-box"><b>EL CONTRATANTE (TITULAR):</b> <b>${c.nombre}</b> &nbsp;|&nbsp;<b>ID:</b> ${c.identificacion} &nbsp;|&nbsp;<b>Cel:</b> ${c.telefono}${c.correo ? ' &nbsp;|&nbsp;<b>Correo:</b> ' + c.correo : ''}</div>
   </div>
   <div class="benef-box"><b>BENEFICIARIOS DESIGNADOS:</b> &nbsp;<b>1.</b> ${b1}${t1 ? '&nbsp; Tel: ' + t1 : ''}${b2 ? '&nbsp;&nbsp;<b>2.</b> ' + b2 : ''}</div>
+  <div class="servicio-box"><b>SERVICIO CONTRATADO:</b> <span style="color:#92400e; font-weight:800;">${c.nombrePaquete}</span> &nbsp;|&nbsp; <b>Costo Total:</b> $${c.precioTotal.toLocaleString()} M.N. &nbsp;|&nbsp; <b>Enganche:</b> $${c.enganche.toLocaleString()} M.N. &nbsp;|&nbsp; <b>${c.mensualidades} pagos ${frecuenciaTexto}s de:</b> $${quoteValue.toLocaleString()} M.N.</div>
 
   <div class="clausulas">
     <p><b>PRIMERA.-</b> El titular <b>${c.nombre}</b> contrata un servicio de previsión social familiar a futuro con <b>SERVICIOS FUNERARIOS HUERTA</b>. Y expresa su entera conformidad a cubrir la cantidad de <b>$${c.precioTotal.toLocaleString()} M.N.</b> fijos sin cargos de interés, mismos que serán cubiertos con un enganche inicial de <b>$${c.enganche.toLocaleString()} M.N.</b> y pagos de <b>$${quoteValue.toLocaleString()} M.N.</b> con frecuencia <b>${frecuenciaTexto}</b>, hasta cubrir el total del plan contratado en <b>${c.mensualidades}</b> cuotas oficiales.</p>
     <p><b>SEGUNDA.-</b> Si el titular opta por la cancelación o en el supuesto que las aportaciones no se cubran en el tiempo pactado pasados 90 días de la primera aportación no cubierta, se dará por terminado el compromiso aquí pactado conveniendo ambas partes que la cantidad que se haya entregado no se devolverá ni reembolsará en efectivo. Quedará como depósito a favor del titular y a cuenta de la prestación de un servicio funerario cuando el titular o un familiar del titular lo solicite considerando la diferencia restante al momento de solicitar el servicio funerario a costa urgente of <b>SERVICIOS FUNERARIOS HUERTA</b>. <b>NOTA:</b> En caso de que el titular acumule 90 días sin abonar durante el período de pago pactado en la PRIMERA CLÁUSULA y ya en ese lapso de tiempo el valor del presente servicio haya sufrido un incremento, el titular acepta sin ninguna notificación alguna la actualización del costo.</p>
     <p><b>TERCERA.-</b> Las partes contratantes manifiestan que, en caso de solicitar el servicio antes de haber liquidado el importe total, se le proporcionará de forma inmediata el servicio funeral. El adeudo pendiente a pagar deberá cubrirse un 50% al solicitar el servicio y el resto en el momento de tiempo que indique <b>SERVICIOS FUNERARIOS HUERTA</b>. En caso de no terminar de pagar el adeudo en el tiempo indicado, se cobrará un 6% de interés mensual sobre el adeudo pendiente.</p>
     <p><b>CUARTA.-</b> Quedan conforme los contratantes en este momento. Que no podrán sumar las aportaciones de dos o más contratos diferentes, para la prestación de un servicio funerario.</p>
-    <p><b>QUINTA.-</b> Los servicios funerarios, que se otorgarán al titular por conducto de <b>SERVICIOS FUNERARIOS HUERTA</b> o cualquiera de sus filiales son: <b>A)</b> Traslado del fallecido desde cualquier unidad médica local o domicilio particular hasta una distancia de 20 km. De esta ciudad. <b>B)</b> En velación a domicilio incluye: Crucifijo, 4 candeleros, biombo y pedestal; servicio de velación en capilla de la funeraria correspondiente a este plan hasta por 24 hrs. <b>C)</b> Arreglo estético del finado para velación <b>D)</b> Traslado del cuerpo vía terrestre, hasta una distancia de 20 km de esta ciudad (sujeto a las condiciones del camino de acceso que permitan la circulación del vehículo). <b>E)</b> Servicio de carroza. <b>F)</b> Trámite del certificado y acta de defunción. <b>G)</b> Ataúd del certificado a elegir: <b>${c.nombrePaquete} · Protección Completa</b>. <b>H)</b> Capilla de velación por 24 hrs (según disponibilidad). <b>I)</b> Cafetería básica. <b>J)</b> Asesoría legal. <b>K)</b> Cobertura nacional en todas nuestras filiales. <b>M)</b> Servicio de cremación (opcional). <b>N)</b> Urna (para servicios de cremación).</p>
+    <p><b>QUINTA.-</b> Los servicios funerarios que otorgará <b>SERVICIOS FUNERARIOS HUERTA</b> o sus filiales son: <b>A)</b> Traslado del fallecido (domicilio/unidad médica, hasta 20 km). <b>B)</b> Velación a domicilio: crucifijo, 4 candeleros, biombo y pedestal; capilla de velación hasta 24 hrs. <b>C)</b> Arreglo estético del finado. <b>D)</b> Traslado terrestre del cuerpo (hasta 20 km, sujeto a condiciones del camino). <b>E)</b> Servicio de carroza. <b>F)</b> Trámite de certificado y acta de defunción. <b>G)</b> Ataúd a elegir: <b>${c.nombrePaquete}</b>. <b>H)</b> Capilla de velación 24 hrs (según disponibilidad). <b>I)</b> Cafetería básica. <b>J)</b> Asesoría legal. <b>K)</b> Cobertura nacional en filiales. <b>L)</b> Cremación (opcional). <b>M)</b> Urna (para cremación).</p>
     <p><b>SEXTA.-</b> Si al otorgar el servicio, el titular solicita un ataúd de costo mayor al contemplado en la CLÁUSULA QUINTA, u otros servicios no considerados en dicha cláusula, el deberá cubrir la diferencia.</p>
     <p><b>SÉPTIMA.-</b> Para otorgar el presente servicio al titular o solicitante deberá presentarse personalmente en las instalaciones de <b>SERVICIOS FUNERARIOS HUERTA</b> presentando este contrato o notificando el número del mismo. Si se presenta después de que alguien haya solicitado el servicio, durante o después del mismo, no se hará valido; quedando vigente para un servicio funerario futuro.</p>
     <p><b>OCTAVA.-</b> Los servicios de embalsamado serán proporcionados por <b>SERVICIOS FUNERARIOS HUERTA</b> y podrán ser: <b>A)</b> Kilometraje adicional. <b>B)</b> Servicio de embalsamado. <b>C)</b> Consumo de cafetería (limitada en la capilla). <b>D)</b> Inhumación (Propiedad en panteón). <b>E)</b> Traslado aéreo o marítimo, descripciones del mismo. <b>F)</b> Otros.</p>
