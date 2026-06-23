@@ -833,10 +833,11 @@ self.addEventListener('message', function(event) {
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs text-slate-400 mb-1">Frecuencia de Pago *</label>
-                            <select id="nc-frecuencia" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 focus:outline-none">
-                                <option value="quincenal">Quincenal</option>
-                                <option value="mensual">Mensual</option>
+                            <select id="nc-frecuencia" onchange="onFrecuenciaChange()" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 focus:outline-none">
+                                <option value="quincenal">Quincenal (48 cuotas — 2 años)</option>
+                                <option value="mensual">Mensual (24 cuotas — 2 años)</option>
                             </select>
+                            <p class="text-[10px] text-amber-500 mt-1">⏱ Máximo 2 años para liquidar el plan.</p>
                         </div>
                         <div class="bg-slate-950 p-4 rounded-xl border border-slate-850 flex justify-between items-center">
                             <div>
@@ -913,6 +914,7 @@ self.addEventListener('message', function(event) {
                     <div>
                         <label class="block text-xs text-slate-400 mb-1">Fecha de Cobro *</label>
                         <input type="date" id="p-fecha" required class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 focus:outline-none">
+                        <p id="p-fecha-aviso" class="text-[10px] text-amber-400 mt-1 hidden"></p>
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
@@ -2131,7 +2133,7 @@ function doPost(e) {
     var contractsSheet = ss.getSheetByName("CONTRATOS");
     if (!contractsSheet) {
       contractsSheet = ss.insertSheet("CONTRATOS");
-      contractsSheet.appendRow(["FOLIO","TITULAR","IDENTIFICACION","CELULAR","CORREO","REGISTRO","PAQUETE","PRECIO_TOTAL","ENGANCHE","PAGADO_A_LA_FECHA","CUOTAS","FRECUENCIA","FIRMA_BASE64","OBSERVACIONES","ASESOR","BENEFICIARIO_1","TELEFONO_1","BENEFICIARIO_2","TELEFONO_2","BENEFICIARIO_3","TELEFONO_3"]);
+      contractsSheet.appendRow(["FOLIO","TITULAR","IDENTIFICACION","CELULAR","CORREO","REGISTRO","PAQUETE","PRECIO_TOTAL","ENGANCHE","PAGADO_A_LA_FECHA","CUOTAS","FRECUENCIA","FIRMA_BASE64","OBSERVACIONES","ASESOR","BENEFICIARIO_1","TELEFONO_1","BENEFICIARIO_2","TELEFONO_2","BENEFICIARIO_3","TELEFONO_3","ESTADO_MANUAL","MOTIVO_ESTADO","MOTIVO_DETALLE","ESTADO_FECHA"]);
     }
     var paymentsSheet = ss.getSheetByName("ABONOS");
     if (!paymentsSheet) {
@@ -2165,7 +2167,8 @@ function doPost(e) {
         // Firma comprimida (~10k chars) — cabe en el límite de 50k de Sheets
         var rowData = [c.folio,c.nombre,c.identificacion,c.telefono,c.correo,c.fechaRegistro,
           c.nombrePaquete,c.precioTotal,c.enganche,c.montoPagado,c.mensualidades,c.frecuenciaPago,
-          "",c.observaciones||"",c.asesor||"",b1,t1,b2,t2,b3,t3];
+          "",c.observaciones||"",c.asesor||"",b1,t1,b2,t2,b3,t3,
+          c.estadoManual||"",c.motivoEstado||"",c.motivoDetalle||"",c.estadoFecha||""];
         // Nota: col 13 (FIRMA_BASE64) siempre se manda vacía — la firma solo vive en localStorage.
         if (foundRow !== -1) {
           contractsSheet.getRange(foundRow, 1, 1, rowData.length).setValues([rowData]);
@@ -2309,6 +2312,10 @@ function doPost(e) {
                                 firmaBase64: rc.FIRMA_BASE64 ? rc.FIRMA_BASE64 : (localIndex !== -1 ? clients[localIndex].firmaBase64 : "") || "",
                                 observaciones: rc.OBSERVACIONES || "",
                                 asesor: rc.ASESOR || "No especificado",
+                                estadoManual: rc.ESTADO_MANUAL || null,
+                                motivoEstado: rc.MOTIVO_ESTADO || "",
+                                motivoDetalle: rc.MOTIVO_DETALLE || "",
+                                estadoFecha: rc.ESTADO_FECHA || "",
                                 beneficiarios: [
                                     { nombre: rc.BENEFICIARIO_1 || "", telefono: String(rc.TELEFONO_1 || "") },
                                     { nombre: rc.BENEFICIARIO_2 || "", telefono: String(rc.TELEFONO_2 || "") },
@@ -2420,14 +2427,72 @@ function doPost(e) {
             const selectId = document.getElementById('nc-paquete').value;
             const chosen = PAQUETES.find(p => p.id === selectId);
             if (chosen) {
+                const freq = document.getElementById('nc-frecuencia').value;
+                const maxCuotas = freq === 'mensual' ? 24 : 48;
                 document.getElementById('nc-precio').value = chosen.precio;
                 document.getElementById('nc-enganche').value = Math.round(chosen.precio * 0.15); // Enganche recomendado de 15%
-                document.getElementById('nc-cuotas').value = chosen.cuotas;
+                document.getElementById('nc-cuotas').value = maxCuotas;
+                document.getElementById('nc-cuotas').max = maxCuotas;
                 recalculateNewContractQuotes();
             }
         }
 
-        function recalculateNewContractQuotes() {
+        function onFrecuenciaChange() {
+            const freq = document.getElementById('nc-frecuencia').value;
+            const cuotasEl = document.getElementById('nc-cuotas');
+            // Forzar máximo 2 años: 24 mensual, 48 quincenal
+            const maxCuotas = freq === 'mensual' ? 24 : 48;
+            cuotasEl.value = maxCuotas;
+            cuotasEl.max = maxCuotas;
+            recalculateNewContractQuotes();
+        }
+
+        // Validar que el día de pago caiga en período permitido
+        function validatePaymentDate(fecha, frecuencia) {
+            if (!fecha) return true; // sin cliente seleccionado, no validar aún
+            const day = parseInt(fecha.split('-')[2], 10);
+            if (frecuencia === 'mensual') {
+                return day >= 1 && day <= 4;
+            } else if (frecuencia === 'quincenal') {
+                return (day >= 1 && day <= 4) || (day >= 16 && day <= 19);
+            }
+            return true;
+        }
+
+        function checkPaymentDateValidity() {
+            const folioSel = document.getElementById('p-cliente').value;
+            const fecha = document.getElementById('p-fecha').value;
+            const avisoEl = document.getElementById('p-fecha-aviso');
+            if (!folioSel || !fecha || !avisoEl) return;
+
+            const client = clients.find(c => c.folio === folioSel);
+            if (!client) return;
+
+            const freq = client.frecuenciaPago || 'mensual';
+            const day = parseInt(fecha.split('-')[2], 10);
+            let msg = '';
+
+            if (freq === 'mensual') {
+                if (day < 1 || day > 4) {
+                    msg = `⚠ Pagos mensuales: días válidos del 1 al 4 de cada mes (día seleccionado: ${day}).`;
+                }
+            } else if (freq === 'quincenal') {
+                const ok = (day >= 1 && day <= 4) || (day >= 16 && day <= 19);
+                if (!ok) {
+                    msg = `⚠ Pagos quincenales: días válidos del 1-4 o del 16-19 de cada mes (día seleccionado: ${day}).`;
+                }
+            }
+
+            if (msg) {
+                avisoEl.innerText = msg;
+                avisoEl.classList.remove('hidden');
+            } else {
+                avisoEl.innerText = '';
+                avisoEl.classList.add('hidden');
+            }
+        }
+
+
             const price = parseFloat(document.getElementById('nc-precio').value) || 0;
             const downPay = parseFloat(document.getElementById('nc-enganche').value) || 0;
             const totalQuotes = parseFloat(document.getElementById('nc-cuotas').value) || 1;
@@ -3235,7 +3300,12 @@ function doPost(e) {
             select.innerHTML = `<option value="">-- Seleccionar Contrato --</option>` + clients.map(c => `
                 <option value="${c.folio}">${c.nombre} (${c.folio} - Resta: $${(c.precioTotal - c.montoPagado).toLocaleString()})</option>
             `).join('');
+            select.onchange = checkPaymentDateValidity;
             document.getElementById('p-fecha').value = new Date().toISOString().split('T')[0];
+            document.getElementById('p-fecha').onchange = checkPaymentDateValidity;
+            // Limpiar aviso
+            const aviso = document.getElementById('p-fecha-aviso');
+            if (aviso) { aviso.innerText = ''; aviso.classList.add('hidden'); }
             document.getElementById('modal-payment').style.display = 'flex';
         }
 
@@ -3328,11 +3398,25 @@ function doPost(e) {
             e.preventDefault();
             const folio = document.getElementById('p-cliente').value;
             const amount = Number(document.getElementById('p-monto').value);
+            const fecha = document.getElementById('p-fecha').value;
 
             const clientIndex = clients.findIndex(c => c.folio === folio);
             if (clientIndex === -1) return;
 
             const target = clients[clientIndex];
+
+            // Validar que la fecha de pago sea en período permitido
+            if (fecha && !validatePaymentDate(fecha, target.frecuenciaPago)) {
+                const freq = target.frecuenciaPago || 'mensual';
+                const rango = freq === 'mensual'
+                    ? 'del 1 al 4 de cada mes'
+                    : 'del 1-4 o del 16-19 de cada mes';
+                const day = parseInt(fecha.split('-')[2], 10);
+                if (!confirm(`⚠ La fecha seleccionada (día ${day}) no corresponde al período de pago ${freq} (${rango}).\n\n¿Deseas guardar de todos modos?`)) {
+                    return;
+                }
+            }
+
             const currentTotalPaid = Number(target.montoPagado || 0) + amount;
 
             if (currentTotalPaid > target.precioTotal) {
