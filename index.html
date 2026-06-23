@@ -291,7 +291,7 @@ self.addEventListener('message', function(event) {
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.14.0 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.15.1 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -809,6 +809,20 @@ self.addEventListener('message', function(event) {
                                 <!-- Cargado por JS -->
                             </select>
                         </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">O buscar por SKU de tienda</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="nc-sku" placeholder="Ej. FUT-001" maxlength="20"
+                                    class="flex-1 bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500 font-mono uppercase"
+                                    oninput="this.value=this.value.toUpperCase()">
+                                <button type="button" onclick="lookupSku()" class="bg-amber-600 hover:bg-amber-700 text-slate-950 text-xs font-bold px-3 rounded-lg">Buscar</button>
+                            </div>
+                            <p id="nc-sku-result" class="text-[10px] mt-1 text-slate-500"></p>
+                        </div>
+                    </div>
+                    <!-- Preview descripción del paquete seleccionado -->
+                    <div id="nc-paquete-preview" class="hidden bg-amber-950/20 border border-amber-800/30 rounded-lg p-3 text-xs text-slate-300 leading-relaxed"></div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs text-slate-400 mb-1">Asesor Responsable *</label>
                             <select id="nc-asesor" required class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 focus:outline-none">
@@ -1369,25 +1383,25 @@ self.addEventListener('message', function(event) {
         // Se guarda en localStorage 'huerta_catalogo' para persistir cambios
         // ═══════════════════════════════════════════════════════════════
         const PAQUETES_DEFAULT = [
-            { id: 'basico', tiendaId: 'HRT-001', nombre: 'Paquete Básico', ataud: 'Ataúd Básico Forrado', precio: 9400, cuotas: 24, imagen: '',
+            { id: 'basico', tiendaId: 'FUT-001', nombre: 'Paquete Básico', ataud: 'Ataúd Básico Forrado', precio: 9400, cuotas: 24, imagen: '',
               incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'plata', tiendaId: 'HRT-002', nombre: 'Paquete Plata', ataud: 'Ataúd Barnizado / Imagen', precio: 14500, cuotas: 24, imagen: '',
+            { id: 'plata', tiendaId: 'FUT-002', nombre: 'Paquete Plata', ataud: 'Ataúd Barnizado / Imagen', precio: 14500, cuotas: 24, imagen: '',
               incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'oro', tiendaId: 'HRT-003', nombre: 'Paquete Oro', ataud: 'Ataúd Pino Liso / Grabado', precio: 19900, cuotas: 24, imagen: '',
+            { id: 'oro', tiendaId: 'FUT-003', nombre: 'Paquete Oro', ataud: 'Ataúd Pino Liso / Grabado', precio: 19900, cuotas: 24, imagen: '',
               incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'platino', tiendaId: 'HRT-004', nombre: 'Paquete Platino', ataud: 'Ataúd Cedro Desmontable', precio: 28000, cuotas: 24, imagen: '',
+            { id: 'platino', tiendaId: 'FUT-004', nombre: 'Paquete Platino', ataud: 'Ataúd Cedro Desmontable', precio: 28000, cuotas: 24, imagen: '',
               incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'diamante', tiendaId: 'HRT-005', nombre: 'Paquete Diamante', ataud: 'Ataúd Tipo Bóveda de Cedro Lisa o Desmontable', precio: 36500, cuotas: 24, imagen: '',
+            { id: 'diamante', tiendaId: 'FUT-005', nombre: 'Paquete Diamante', ataud: 'Ataúd Tipo Bóveda de Cedro Lisa o Desmontable', precio: 36500, cuotas: 24, imagen: '',
               incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'presidencial', tiendaId: 'HRT-006', nombre: 'Paquete Presidencial', ataud: 'Ataúd Tipo Bóveda de Cedro Lisa o Desmontable', precio: 61000, cuotas: 24, imagen: '',
+            { id: 'presidencial', tiendaId: 'FUT-006', nombre: 'Paquete Presidencial', ataud: 'Ataúd Tipo Bóveda de Cedro Lisa o Desmontable', precio: 61000, cuotas: 24, imagen: '',
               incluye: ['Todo lo del resto de paquetes','Sala de velación en nuestras instalaciones o sala de bosques del recuerdo','Autobús de acompañamiento','Cafetería ilimitada (para 60 personas)','2 coronas florales','Alimento a elegir en nuestras opciones (para 60 personas)'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'cremacion', tiendaId: 'HRT-007', nombre: 'Paquete Cremación', ataud: 'Urna Básica', precio: 18500, cuotas: 24, imagen: '',
+            { id: 'cremacion', tiendaId: 'FUT-007', nombre: 'Paquete Cremación', ataud: 'Urna Básica', precio: 18500, cuotas: 24, imagen: '',
               incluye: ['Servicio de cremación básico','Urna básica','Crematorio El Ángel, ubicado en La Orduña, Coatepec','Asesoría en trámites'],
               noIncluye: ['Pago de derechos','Traslados fuera del área de cobertura'] }
         ];
@@ -2421,13 +2435,65 @@ function doPost(e) {
             asesorSelect.innerHTML = activeAsesores.map(e => `<option value="${e.nombre}">${e.nombre} (${e.puesto})</option>`).join('');
         }
 
+        // ── BÚSQUEDA POR SKU DE TIENDA ──
+        const TIENDA_API = 'https://script.google.com/macros/s/AKfycbzJtOwVJ5m2ziBGW2nkQy57x1nOo5ZLuyLtcISgwK1uaMMkoVKsHglDrSBbeJe-idr3Mw/exec';
+
+        async function lookupSku() {
+            const sku = (document.getElementById('nc-sku').value || '').trim().toUpperCase();
+            const resultEl = document.getElementById('nc-sku-result');
+            if (!sku) { resultEl.innerText = 'Ingresa un SKU para buscar.'; return; }
+            resultEl.innerText = '⏳ Buscando…'; resultEl.style.color = '#94a3b8';
+
+            // 1. Buscar en paquetes locales por tiendaId o id
+            const localMatch = PAQUETES.find(p => (p.tiendaId||'').toUpperCase() === sku || p.id.toUpperCase() === sku);
+            if (localMatch) {
+                applySkuProduct({ id: sku, nombre: localMatch.nombre, precio: localMatch.precio, descripcion: (localMatch.incluye||[]).join(' · ') }, localMatch.id);
+                resultEl.innerText = `✅ ${localMatch.nombre} — $${localMatch.precio.toLocaleString()}`; resultEl.style.color = '#4ade80';
+                return;
+            }
+            // 2. Consultar API de la tienda
+            try {
+                const res = await fetch(TIENDA_API);
+                const data = await res.json();
+                const found = Array.isArray(data) ? data.find(p => String(p.id).toUpperCase() === sku) : null;
+                if (found) {
+                    const localPaq = PAQUETES.find(pk => pk.nombre === found.nombre || (pk.tiendaId||'').toUpperCase() === sku);
+                    applySkuProduct(found, localPaq ? localPaq.id : null);
+                    resultEl.innerText = `✅ ${found.nombre} — $${Number(found.precio).toLocaleString()}`; resultEl.style.color = '#4ade80';
+                } else {
+                    resultEl.innerText = `❌ SKU "${sku}" no encontrado.`; resultEl.style.color = '#f87171';
+                }
+            } catch(e) {
+                resultEl.innerText = 'Error al consultar la tienda.'; resultEl.style.color = '#f87171';
+            }
+        }
+
+        function applySkuProduct(p, localPaqId) {
+            if (localPaqId) document.getElementById('nc-paquete').value = localPaqId;
+            document.getElementById('nc-precio').value = Number(p.precio);
+            document.getElementById('nc-enganche').value = Math.round(Number(p.precio) * 0.10);
+            document.getElementById('nc-cuotas').value = 24;
+            const preview = document.getElementById('nc-paquete-preview');
+            if (preview) {
+                preview.innerHTML = `<span class="font-semibold text-amber-400">${p.nombre}</span>${p.descripcion ? ' · <span class="text-slate-400">' + p.descripcion + '</span>' : ''}`;
+                preview.classList.remove('hidden');
+            }
+            recalculateNewContractQuotes();
+        }
+
         function updateNewContractPrice() {
             const selectId = document.getElementById('nc-paquete').value;
             const chosen = PAQUETES.find(p => p.id === selectId);
             if (chosen) {
                 document.getElementById('nc-precio').value = chosen.precio;
-                document.getElementById('nc-enganche').value = Math.round(chosen.precio * 0.15); // Enganche recomendado de 15%
-                document.getElementById('nc-cuotas').value = 24; // siempre 2 años = 24 mensualidades
+                document.getElementById('nc-enganche').value = Math.round(chosen.precio * 0.10);
+                document.getElementById('nc-cuotas').value = 24;
+                const preview = document.getElementById('nc-paquete-preview');
+                if (preview) {
+                    const desc = (chosen.incluye||[]).slice(0,5).join(' · ') + (chosen.incluye&&chosen.incluye.length>5?'…':'');
+                    preview.innerHTML = `<span class="font-semibold text-amber-400">${chosen.nombre}</span>${desc ? ' · <span class="text-slate-400">' + desc + '</span>' : ''}`;
+                    preview.classList.remove('hidden');
+                }
                 recalculateNewContractQuotes();
             }
         }
