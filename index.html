@@ -291,7 +291,7 @@ self.addEventListener('message', function(event) {
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.13.0 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.14.0 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -1369,25 +1369,25 @@ self.addEventListener('message', function(event) {
         // Se guarda en localStorage 'huerta_catalogo' para persistir cambios
         // ═══════════════════════════════════════════════════════════════
         const PAQUETES_DEFAULT = [
-            { id: 'basico', tiendaId: 'HRT-001', nombre: 'Paquete Básico', ataud: 'Ataúd Básico Forrado', precio: 9400, cuotas: 48, imagen: '',
+            { id: 'basico', tiendaId: 'HRT-001', nombre: 'Paquete Básico', ataud: 'Ataúd Básico Forrado', precio: 9400, cuotas: 24, imagen: '',
               incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'plata', tiendaId: 'HRT-002', nombre: 'Paquete Plata', ataud: 'Ataúd Barnizado / Imagen', precio: 14500, cuotas: 48, imagen: '',
+            { id: 'plata', tiendaId: 'HRT-002', nombre: 'Paquete Plata', ataud: 'Ataúd Barnizado / Imagen', precio: 14500, cuotas: 24, imagen: '',
               incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'oro', tiendaId: 'HRT-003', nombre: 'Paquete Oro', ataud: 'Ataúd Pino Liso / Grabado', precio: 19900, cuotas: 48, imagen: '',
+            { id: 'oro', tiendaId: 'HRT-003', nombre: 'Paquete Oro', ataud: 'Ataúd Pino Liso / Grabado', precio: 19900, cuotas: 24, imagen: '',
               incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'platino', tiendaId: 'HRT-004', nombre: 'Paquete Platino', ataud: 'Ataúd Cedro Desmontable', precio: 28000, cuotas: 48, imagen: '',
+            { id: 'platino', tiendaId: 'HRT-004', nombre: 'Paquete Platino', ataud: 'Ataúd Cedro Desmontable', precio: 28000, cuotas: 24, imagen: '',
               incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'diamante', tiendaId: 'HRT-005', nombre: 'Paquete Diamante', ataud: 'Ataúd Tipo Bóveda de Cedro Lisa o Desmontable', precio: 36500, cuotas: 48, imagen: '',
+            { id: 'diamante', tiendaId: 'HRT-005', nombre: 'Paquete Diamante', ataud: 'Ataúd Tipo Bóveda de Cedro Lisa o Desmontable', precio: 36500, cuotas: 24, imagen: '',
               incluye: ['Asesoría en trámites','Recolección del cuerpo en domicilio, sanatorio o SEMEFO','Carroza fúnebre','Embalsamado y arreglo estético','Equipo de velación por 12 días (incluye juego de 4 cirios)','Cruz de madera rotulada','Opción de cremar: incluye urna básica, cremación y renta de ataúd'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'presidencial', tiendaId: 'HRT-006', nombre: 'Paquete Presidencial', ataud: 'Ataúd Tipo Bóveda de Cedro Lisa o Desmontable', precio: 61000, cuotas: 48, imagen: '',
+            { id: 'presidencial', tiendaId: 'HRT-006', nombre: 'Paquete Presidencial', ataud: 'Ataúd Tipo Bóveda de Cedro Lisa o Desmontable', precio: 61000, cuotas: 24, imagen: '',
               incluye: ['Todo lo del resto de paquetes','Sala de velación en nuestras instalaciones o sala de bosques del recuerdo','Autobús de acompañamiento','Cafetería ilimitada (para 60 personas)','2 coronas florales','Alimento a elegir en nuestras opciones (para 60 personas)'],
               noIncluye: ['Pago de derechos','Inhumación y costos que ésta genere'] },
-            { id: 'cremacion', tiendaId: 'HRT-007', nombre: 'Paquete Cremación', ataud: 'Urna Básica', precio: 18500, cuotas: 48, imagen: '',
+            { id: 'cremacion', tiendaId: 'HRT-007', nombre: 'Paquete Cremación', ataud: 'Urna Básica', precio: 18500, cuotas: 24, imagen: '',
               incluye: ['Servicio de cremación básico','Urna básica','Crematorio El Ángel, ubicado en La Orduña, Coatepec','Asesoría en trámites'],
               noIncluye: ['Pago de derechos','Traslados fuera del área de cobertura'] }
         ];
@@ -2131,7 +2131,7 @@ function doPost(e) {
     var contractsSheet = ss.getSheetByName("CONTRATOS");
     if (!contractsSheet) {
       contractsSheet = ss.insertSheet("CONTRATOS");
-      contractsSheet.appendRow(["FOLIO","TITULAR","IDENTIFICACION","CELULAR","CORREO","REGISTRO","PAQUETE","PRECIO_TOTAL","ENGANCHE","PAGADO_A_LA_FECHA","CUOTAS","FRECUENCIA","FIRMA_BASE64","OBSERVACIONES","ASESOR","BENEFICIARIO_1","TELEFONO_1","BENEFICIARIO_2","TELEFONO_2","BENEFICIARIO_3","TELEFONO_3"]);
+      contractsSheet.appendRow(["FOLIO","TITULAR","IDENTIFICACION","CELULAR","CORREO","REGISTRO","PAQUETE","PRECIO_TOTAL","ENGANCHE","PAGADO_A_LA_FECHA","CUOTAS","FRECUENCIA","FIRMA_BASE64","OBSERVACIONES","ASESOR","BENEFICIARIO_1","TELEFONO_1","BENEFICIARIO_2","TELEFONO_2","BENEFICIARIO_3","TELEFONO_3","ESTADO_MANUAL","MOTIVO_ESTADO","MOTIVO_DETALLE","FECHA_ESTADO"]);
     }
     var paymentsSheet = ss.getSheetByName("ABONOS");
     if (!paymentsSheet) {
@@ -2165,7 +2165,8 @@ function doPost(e) {
         // Firma comprimida (~10k chars) — cabe en el límite de 50k de Sheets
         var rowData = [c.folio,c.nombre,c.identificacion,c.telefono,c.correo,c.fechaRegistro,
           c.nombrePaquete,c.precioTotal,c.enganche,c.montoPagado,c.mensualidades,c.frecuenciaPago,
-          "",c.observaciones||"",c.asesor||"",b1,t1,b2,t2,b3,t3];
+          "",c.observaciones||"",c.asesor||"",b1,t1,b2,t2,b3,t3,
+          c.estadoManual||"Activo",c.motivoEstado||"",c.motivoDetalle||"",c.estadoFecha||""];
         // Nota: col 13 (FIRMA_BASE64) siempre se manda vacía — la firma solo vive en localStorage.
         if (foundRow !== -1) {
           contractsSheet.getRange(foundRow, 1, 1, rowData.length).setValues([rowData]);
@@ -2309,6 +2310,10 @@ function doPost(e) {
                                 firmaBase64: rc.FIRMA_BASE64 ? rc.FIRMA_BASE64 : (localIndex !== -1 ? clients[localIndex].firmaBase64 : "") || "",
                                 observaciones: rc.OBSERVACIONES || "",
                                 asesor: rc.ASESOR || "No especificado",
+                                estadoManual:  rc.ESTADO_MANUAL  ? rc.ESTADO_MANUAL  : null,
+                                motivoEstado:  rc.MOTIVO_ESTADO  || "",
+                                motivoDetalle: rc.MOTIVO_DETALLE || "",
+                                estadoFecha:   rc.FECHA_ESTADO   || "",
                                 beneficiarios: [
                                     { nombre: rc.BENEFICIARIO_1 || "", telefono: String(rc.TELEFONO_1 || "") },
                                     { nombre: rc.BENEFICIARIO_2 || "", telefono: String(rc.TELEFONO_2 || "") },
@@ -2422,7 +2427,7 @@ function doPost(e) {
             if (chosen) {
                 document.getElementById('nc-precio').value = chosen.precio;
                 document.getElementById('nc-enganche').value = Math.round(chosen.precio * 0.15); // Enganche recomendado de 15%
-                document.getElementById('nc-cuotas').value = chosen.cuotas;
+                document.getElementById('nc-cuotas').value = 24; // siempre 2 años = 24 mensualidades
                 recalculateNewContractQuotes();
             }
         }
@@ -2881,6 +2886,11 @@ function doPost(e) {
                         '<div class="flex justify-between text-[11px] mt-1.5 text-slate-400">' +
                             '<span>Abonado: <strong class="text-emerald-400">$' + c.montoPagado.toLocaleString() + '</strong></span>' +
                             '<span>Pendiente: <strong class="' + pendColor + '">$' + balance.toLocaleString() + '</strong></span>' +
+                        '</div>' +
+                        '<div class="text-[10px] text-slate-500 mt-1">' +
+                            (c.frecuenciaPago === 'quincenal'
+                                ? '📅 Pagos quincenales · días <b class="text-slate-400">1–4</b> y <b class="text-slate-400">16–19</b> de cada mes'
+                                : '📅 Pagos mensuales · días <b class="text-slate-400">1–4</b> de cada mes') +
                         '</div>' +
                     '</div>' +
                     '<div class="pt-2 border-t border-slate-900 flex flex-wrap gap-2">' +
@@ -3596,7 +3606,9 @@ function doPost(e) {
             if (!c) return;
 
             const remaining = c.precioTotal - c.enganche;
-            const quoteValue = Math.round(remaining / c.mensualidades);
+            // Cuotas: mensual = 24 (2 años), quincenal = 48 (2 años × 2 pagos/mes)
+            const numCuotas = c.frecuenciaPago === 'quincenal' ? 48 : 24;
+            const quoteValue = Math.round(remaining / numCuotas);
             const frecuenciaTexto = c.frecuenciaPago === 'quincenal' ? 'quincenal' : 'mensual';
             const b1 = c.beneficiarios[0] ? c.beneficiarios[0].nombre : 'N/A';
             const t1 = c.beneficiarios[0] ? c.beneficiarios[0].telefono : '';
@@ -3677,10 +3689,10 @@ function doPost(e) {
     <div class="parte-box"><b>EL CONTRATANTE (TITULAR):</b> <b>${c.nombre}</b> &nbsp;|&nbsp;<b>ID:</b> ${c.identificacion} &nbsp;|&nbsp;<b>Cel:</b> ${c.telefono}${c.correo ? ' &nbsp;|&nbsp;<b>Correo:</b> ' + c.correo : ''}</div>
   </div>
   <div class="benef-box"><b>BENEFICIARIOS DESIGNADOS:</b> &nbsp;<b>1.</b> ${b1}${t1 ? '&nbsp; Tel: ' + t1 : ''}${b2 ? '&nbsp;&nbsp;<b>2.</b> ' + b2 : ''}</div>
-  <div class="servicio-box"><b>SERVICIO CONTRATADO:</b> <span style="color:#92400e; font-weight:800;">${c.nombrePaquete}</span> &nbsp;|&nbsp; <b>Costo Total:</b> $${c.precioTotal.toLocaleString()} M.N. &nbsp;|&nbsp; <b>Enganche:</b> $${c.enganche.toLocaleString()} M.N. &nbsp;|&nbsp; <b>${c.mensualidades} pagos ${frecuenciaTexto}s de:</b> $${quoteValue.toLocaleString()} M.N.</div>
+  <div class="servicio-box"><b>SERVICIO CONTRATADO:</b> <span style="color:#92400e; font-weight:800;">${c.nombrePaquete}</span> &nbsp;|&nbsp; <b>Costo Total:</b> $${c.precioTotal.toLocaleString()} M.N. &nbsp;|&nbsp; <b>Enganche:</b> $${c.enganche.toLocaleString()} M.N. &nbsp;|&nbsp; ${c.frecuenciaPago === 'quincenal' ? '<b>48 pagos quincenales de $' + quoteValue.toLocaleString() + ' M.N.</b> (días 1–4 y 16–19 de cada mes)' : '<b>24 mensualidades de $' + quoteValue.toLocaleString() + ' M.N.</b> (días 1–4 de cada mes)'} &nbsp;|&nbsp; <b>Plazo: 2 años</b></div>
 
   <div class="clausulas">
-    <p><b>PRIMERA.-</b> El titular <b>${c.nombre}</b> contrata un servicio de previsión social familiar a futuro con <b>SERVICIOS FUNERARIOS HUERTA</b>. Y expresa su entera conformidad a cubrir la cantidad de <b>$${c.precioTotal.toLocaleString()} M.N.</b> fijos sin cargos de interés, mismos que serán cubiertos con un enganche inicial de <b>$${c.enganche.toLocaleString()} M.N.</b> y pagos de <b>$${quoteValue.toLocaleString()} M.N.</b> con frecuencia <b>${frecuenciaTexto}</b>, hasta cubrir el total del plan contratado en <b>${c.mensualidades}</b> cuotas oficiales.</p>
+    <p><b>PRIMERA.-</b> El titular <b>${c.nombre}</b> contrata un servicio de previsión social familiar a futuro con <b>SERVICIOS FUNERARIOS HUERTA</b>. Y expresa su entera conformidad a cubrir la cantidad de <b>$${c.precioTotal.toLocaleString()} M.N.</b> fijos sin cargos de interés, mismos que serán cubiertos con un enganche inicial de <b>$${c.enganche.toLocaleString()} M.N.</b> y ${c.frecuenciaPago === 'quincenal' ? '<b>48 pagos quincenales</b> de <b>$' + quoteValue.toLocaleString() + ' M.N.</b>, liquidables los días <b>1 al 4</b> y <b>16 al 19</b> de cada mes' : '<b>24 mensualidades</b> de <b>$' + quoteValue.toLocaleString() + ' M.N.</b>, liquidables los días <b>1 al 4</b> de cada mes'}, en un plazo de <b>2 años</b> a partir de la fecha de firma.</p>
     <p><b>SEGUNDA.-</b> Si el titular opta por la cancelación o en el supuesto que las aportaciones no se cubran en el tiempo pactado pasados 90 días de la primera aportación no cubierta, se dará por terminado el compromiso aquí pactado conveniendo ambas partes que la cantidad que se haya entregado no se devolverá ni reembolsará en efectivo. Quedará como depósito a favor del titular y a cuenta de la prestación de un servicio funerario cuando el titular o un familiar del titular lo solicite considerando la diferencia restante al momento de solicitar el servicio funerario a costa urgente of <b>SERVICIOS FUNERARIOS HUERTA</b>. <b>NOTA:</b> En caso de que el titular acumule 90 días sin abonar durante el período de pago pactado en la PRIMERA CLÁUSULA y ya en ese lapso de tiempo el valor del presente servicio haya sufrido un incremento, el titular acepta sin ninguna notificación alguna la actualización del costo.</p>
     <p><b>TERCERA.-</b> Las partes contratantes manifiestan que, en caso de solicitar el servicio antes de haber liquidado el importe total, se le proporcionará de forma inmediata el servicio funeral. El adeudo pendiente a pagar deberá cubrirse un 50% al solicitar el servicio y el resto en el momento de tiempo que indique <b>SERVICIOS FUNERARIOS HUERTA</b>. En caso de no terminar de pagar el adeudo en el tiempo indicado, se cobrará un 6% de interés mensual sobre el adeudo pendiente.</p>
     <p><b>CUARTA.-</b> Quedan conforme los contratantes en este momento. Que no podrán sumar las aportaciones de dos o más contratos diferentes, para la prestación de un servicio funerario.</p>
