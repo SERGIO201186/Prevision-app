@@ -291,7 +291,7 @@ self.addEventListener('message', function(event) {
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.15.1 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.16.0 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -614,6 +614,15 @@ self.addEventListener('message', function(event) {
                     <p class="text-xs text-slate-400 leading-relaxed">
                         Pega la dirección de Apps Script de tu implementación web para habilitar la subida y descarga bidireccional automática de los contratos, abonos y de los nuevos datos de empleados.
                     </p>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Correo del Administrador (para notificaciones)</label>
+                        <div class="flex gap-2">
+                            <input type="email" id="admin-email-input" placeholder="admin@gmail.com"
+                                class="flex-1 bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500">
+                            <button onclick="saveAdminEmail()" class="bg-amber-600 hover:bg-amber-700 text-slate-950 text-xs font-bold px-4 rounded-lg">Guardar</button>
+                        </div>
+                        <p id="admin-email-status" class="text-[10px] mt-1 text-slate-500"></p>
+                    </div>
                     <div class="flex flex-col sm:flex-row gap-3">
                         <input type="text" id="google-script-url" placeholder="https://script.google.com/macros/s/.../exec" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-slate-200 focus:outline-none focus:border-amber-500">
                         <button onclick="saveGoogleUrl()" class="bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold px-6 py-3 rounded-lg text-sm transition">
@@ -1371,6 +1380,47 @@ self.addEventListener('message', function(event) {
         let pendingSyncEmployees = JSON.parse(localStorage.getItem('huerta_pending_employees')) || [];
 
         let googleScriptUrl = localStorage.getItem('huerta_google_url') || "";
+        let adminEmail = localStorage.getItem('huerta_admin_email') || "";
+
+        function saveAdminEmail() {
+            const input = document.getElementById('admin-email-input');
+            const status = document.getElementById('admin-email-status');
+            if (!input) return;
+            const val = input.value.trim();
+            if (!val || !val.includes('@')) {
+                if (status) status.innerText = '❌ Ingresa un correo válido.';
+                return;
+            }
+            adminEmail = val;
+            localStorage.setItem('huerta_admin_email', val);
+            if (status) status.innerText = '✅ Correo guardado: ' + val;
+            showToast('✅ Correo de notificaciones guardado.', 'success');
+        }
+
+        // ── NOTIFICACIONES AL ADMIN ──
+        // Envía al Apps Script una petición de tipo "notify" con los detalles del movimiento.
+        // El Apps Script usa GmailApp.sendEmail() para mandar el correo.
+        async function sendAdminNotification(tipo, datos) {
+            if (!googleScriptUrl || !adminEmail) return; // silencioso si no configurado
+            try {
+                const session = JSON.parse(localStorage.getItem('huerta_session') || '{}');
+                const asesor = session.nombre || 'Desconocido';
+                const payload = {
+                    action: 'notify',
+                    tipo: tipo,          // 'nuevo_contrato' | 'nuevo_abono'
+                    asesor: asesor,
+                    adminEmail: adminEmail,
+                    fecha: new Date().toLocaleString('es-MX'),
+                    datos: datos
+                };
+                // Fire-and-forget — no bloqueamos la UI
+                fetch(googleScriptUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).catch(() => {}); // ignorar errores de red silenciosamente
+            } catch(e) {}
+        }
         let isDrawing = false;
         let points = [];
         let canvas, ctx;
@@ -2161,6 +2211,52 @@ function doPost(e) {
     // El cuerpo llega como text/plain para evitar preflight CORS
     var rawBody = e.postData ? e.postData.contents : "{}";
     var payload = JSON.parse(rawBody);
+
+    // ── NOTIFICACIONES AL ADMINISTRADOR ──
+    if (payload.action === 'notify' && payload.adminEmail && payload.tipo) {
+      try {
+        var asunto, cuerpo;
+        var fecha = payload.fecha || new Date().toLocaleString();
+        var asesor = payload.asesor || 'Un asesor';
+        var d = payload.datos || {};
+
+        if (payload.tipo === 'nuevo_contrato') {
+          asunto = '📋 Nuevo contrato registrado — ' + (d.folio||'') + ' · Huerta';
+          cuerpo = 'Hola Admin,\\n\\n'
+            + asesor + ' acaba de registrar un nuevo contrato:\\n\\n'
+            + '  Folio:    ' + (d.folio||'-') + '\\n'
+            + '  Titular:  ' + (d.titular||'-') + '\\n'
+            + '  Paquete:  ' + (d.paquete||'-') + '\\n'
+            + '  Precio:   $' + (Number(d.precio)||0).toLocaleString('es-MX') + ' M.N.\\n'
+            + '  Enganche: $' + (Number(d.enganche)||0).toLocaleString('es-MX') + ' M.N.\\n'
+            + '  Fecha:    ' + fecha + '\\n\\n'
+            + 'Revisa la app de gestión para más detalles.\\n\\n'
+            + '-- Servicios Funerarios Huerta · Sistema de Previsión';
+        } else if (payload.tipo === 'nuevo_abono') {
+          asunto = '💰 Abono registrado — ' + (d.folio||'') + ' (' + (d.titular||'') + ')';
+          cuerpo = 'Hola Admin,\\n\\n'
+            + asesor + ' acaba de registrar un abono:\\n\\n'
+            + '  Folio:          ' + (d.folio||'-') + '\\n'
+            + '  Titular:        ' + (d.titular||'-') + '\\n'
+            + '  Monto abonado:  $' + (Number(d.monto)||0).toLocaleString('es-MX') + ' M.N.\\n'
+            + '  Método de pago: ' + (d.metodo||'-') + '\\n'
+            + '  Fecha de pago:  ' + (d.fecha||'-') + '\\n'
+            + '  Saldo restante: $' + (Number(d.saldoRestante)||0).toLocaleString('es-MX') + ' M.N.\\n'
+            + '  Registrado:     ' + fecha + '\\n\\n'
+            + 'Revisa la app de gestión para más detalles.\\n\\n'
+            + '-- Servicios Funerarios Huerta · Sistema de Previsión';
+        }
+
+        if (asunto && cuerpo) {
+          GmailApp.sendEmail(payload.adminEmail, asunto, cuerpo);
+        }
+      } catch(emailErr) {
+        // No interrumpir el flujo si falla el correo
+        Logger.log('Error enviando notificación: ' + emailErr.toString());
+      }
+      return ContentService.createTextOutput(JSON.stringify({ result: 'notified' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
 
     // ── Contratos ──
     if (payload.contracts && payload.contracts.length > 0) {
@@ -3398,6 +3494,15 @@ function doPost(e) {
             updateMetrics();
             renderClientsList();
             showToast(`Contrato ${folio} guardado y asentado con éxito.`);
+
+            // Notificar al administrador
+            sendAdminNotification('nuevo_contrato', {
+                folio: folio,
+                titular: newClientObj.nombre,
+                paquete: newClientObj.nombrePaquete,
+                precio: newClientObj.precioTotal,
+                enganche: newClientObj.enganche
+            });
         }
 
         function savePayment(e) {
@@ -3451,6 +3556,16 @@ function doPost(e) {
             renderPaymentsTab();
             renderClientsList();
             showToast(`Abono por $${amount.toLocaleString()} procesado con éxito.`);
+
+            // Notificar al administrador
+            sendAdminNotification('nuevo_abono', {
+                folio: folio,
+                titular: target.nombre,
+                monto: amount,
+                metodo: newPay.metodo,
+                fecha: newPay.fecha,
+                saldoRestante: target.precioTotal - currentTotalPaid
+            });
 
             // Preguntar si desea imprimir comprobante
             const savedPay = newPay;
@@ -3921,6 +4036,10 @@ function doPost(e) {
                 desc.innerText = "Enlace directo bidireccional mediante Google Drive Sheets."; 
                 const pendingTabCount = document.getElementById('sync-tab-pending-count');
                 if (pendingTabCount) pendingTabCount.innerText = getPendingCount();
+                const emailInput = document.getElementById('admin-email-input');
+                if (emailInput && adminEmail) emailInput.value = adminEmail;
+                const emailStatus = document.getElementById('admin-email-status');
+                if (emailStatus && adminEmail) emailStatus.innerText = '✅ Notificaciones activas: ' + adminEmail;
                 safeCreateIcons();
             }
             if (tabId === 'asesor') { 
