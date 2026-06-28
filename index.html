@@ -291,7 +291,7 @@ self.addEventListener('message', function(event) {
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.16.0 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.17.0 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -2195,7 +2195,7 @@ function doPost(e) {
     var contractsSheet = ss.getSheetByName("CONTRATOS");
     if (!contractsSheet) {
       contractsSheet = ss.insertSheet("CONTRATOS");
-      contractsSheet.appendRow(["FOLIO","TITULAR","IDENTIFICACION","CELULAR","CORREO","REGISTRO","PAQUETE","PRECIO_TOTAL","ENGANCHE","PAGADO_A_LA_FECHA","CUOTAS","FRECUENCIA","FIRMA_BASE64","OBSERVACIONES","ASESOR","BENEFICIARIO_1","TELEFONO_1","BENEFICIARIO_2","TELEFONO_2","BENEFICIARIO_3","TELEFONO_3","ESTADO_MANUAL","MOTIVO_ESTADO","MOTIVO_DETALLE","FECHA_ESTADO"]);
+      contractsSheet.appendRow(["FOLIO","TITULAR","IDENTIFICACION","CELULAR","CORREO","REGISTRO","PAQUETE","PRECIO_TOTAL","ENGANCHE","PAGADO_A_LA_FECHA","CUOTAS","FRECUENCIA","FIRMA_BASE64","OBSERVACIONES","ASESOR","BENEFICIARIO_1","TELEFONO_1","BENEFICIARIO_2","TELEFONO_2","BENEFICIARIO_3","TELEFONO_3","ESTADO_MANUAL","MOTIVO_ESTADO","MOTIVO_DETALLE","FECHA_ESTADO","CERTIFICADO_NUM","CERTIFICADO_FECHA"]);
     }
     var paymentsSheet = ss.getSheetByName("ABONOS");
     if (!paymentsSheet) {
@@ -2231,6 +2231,18 @@ function doPost(e) {
             + '  Enganche: $' + (Number(d.enganche)||0).toLocaleString('es-MX') + ' M.N.\\n'
             + '  Fecha:    ' + fecha + '\\n\\n'
             + 'Revisa la app de gestión para más detalles.\\n\\n'
+            + '-- Servicios Funerarios Huerta · Sistema de Previsión';
+        } else if (payload.tipo === 'certificado_emitido') {
+          asunto = '🏅 Certificado de liquidación emitido — ' + (d.numCert||'') + ' · Huerta';
+          cuerpo = 'Hola Admin,\n\nSe ha emitido un Certificado de Liquidación Total:\n\n'
+            + '  N° Certificado: ' + (d.numCert||'-') + '\n'
+            + '  Folio contrato: ' + (d.folio||'-') + '\n'
+            + '  Titular:        ' + (d.titular||'-') + '\n'
+            + '  Paquete:        ' + (d.paquete||'-') + '\n'
+            + '  Monto total:    $' + (Number(d.precioTotal)||0).toLocaleString('es-MX') + ' M.N.\n'
+            + '  Fecha emisión:  ' + (d.fechaEmision||'-') + '\n'
+            + '  Emitido por:    ' + asesor + '\n\n'
+            + 'Guarda este número de certificado en tus registros.\n\n'
             + '-- Servicios Funerarios Huerta · Sistema de Previsión';
         } else if (payload.tipo === 'nuevo_abono') {
           asunto = '💰 Abono registrado — ' + (d.folio||'') + ' (' + (d.titular||'') + ')';
@@ -2276,7 +2288,9 @@ function doPost(e) {
         var rowData = [c.folio,c.nombre,c.identificacion,c.telefono,c.correo,c.fechaRegistro,
           c.nombrePaquete,c.precioTotal,c.enganche,c.montoPagado,c.mensualidades,c.frecuenciaPago,
           "",c.observaciones||"",c.asesor||"",b1,t1,b2,t2,b3,t3,
-          c.estadoManual||"Activo",c.motivoEstado||"",c.motivoDetalle||"",c.estadoFecha||""];
+          c.estadoManual||"Activo",c.motivoEstado||"",c.motivoDetalle||"",c.estadoFecha||"",
+          c.certificados&&c.certificados.length?c.certificados[c.certificados.length-1].numCert:"",
+          c.certificados&&c.certificados.length?c.certificados[c.certificados.length-1].fechaEmision:""];
         // Nota: col 13 (FIRMA_BASE64) siempre se manda vacía — la firma solo vive en localStorage.
         if (foundRow !== -1) {
           contractsSheet.getRange(foundRow, 1, 1, rowData.length).setValues([rowData]);
@@ -2802,7 +2816,332 @@ function doPost(e) {
             window.open(url, '_blank');
         }
 
-        // ── RESPALDO DE FIRMAS DIGITALES ──
+        // ═══════════════════════════════════════════════════════════════
+        // CERTIFICADO DE LIQUIDACIÓN TOTAL
+        // ═══════════════════════════════════════════════════════════════
+
+        // Genera un hash simple pero único a partir de los datos del contrato
+        async function generarHashVerificacion(folio, precioTotal, fechaRegistro) {
+            const datos = `SFH-${folio}-${precioTotal}-${fechaRegistro}-HUERTA-PREVISION-2024`;
+            const encoder = new TextEncoder();
+            const data = encoder.encode(datos);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2,'0')).join('').substring(0, 24).toUpperCase();
+        }
+
+        async function printCertificado(folio) {
+            const c = clients.find(cl => cl.folio === folio);
+            if (!c) return;
+
+            // Solo para contratos liquidados
+            if (getContractStatus(c) !== 'liquidado') {
+                showToast('Solo se puede emitir certificado para contratos 100% liquidados.', 'error');
+                return;
+            }
+
+            // Generar datos de seguridad
+            const hash = await generarHashVerificacion(c.folio, c.precioTotal, c.fechaRegistro);
+            const ahora = new Date();
+            const fechaEmision = ahora.toLocaleDateString('es-MX', { year:'numeric', month:'long', day:'numeric' });
+            const horaEmision = ahora.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' });
+            const numCert = 'CERT-' + ahora.getFullYear() + '-' + c.folio.replace(/[^A-Z0-9]/g,'') + '-' + hash.substring(0,6);
+
+            // Beneficiarios
+            const b1 = c.beneficiarios[0] ? c.beneficiarios[0].nombre : 'N/A';
+            const t1 = c.beneficiarios[0] ? c.beneficiarios[0].telefono : '';
+            const b2 = c.beneficiarios[1] && c.beneficiarios[1].nombre ? c.beneficiarios[1].nombre : '';
+            const t2 = c.beneficiarios[1] ? c.beneficiarios[1].telefono : '';
+
+            // Historial de pagos del contrato
+            const contratoPayments = payments.filter(p => p.clienteId === c.folio)
+                .sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+            const primerPago = contratoPayments[0] ? contratoPayments[0].fecha : c.fechaRegistro;
+            const ultimoPago = contratoPayments[contratoPayments.length-1]
+                ? contratoPayments[contratoPayments.length-1].fecha : c.fechaRegistro;
+
+            // Guardar registro de certificado emitido en el cliente
+            const certRecord = {
+                numCert, fechaEmision: ahora.toISOString().split('T')[0],
+                horaEmision, hash, emitidoPor: currentActiveUser ? currentActiveUser.nombre : 'Sistema'
+            };
+            const idx = clients.findIndex(cl => cl.folio === folio);
+            if (!clients[idx].certificados) clients[idx].certificados = [];
+            clients[idx].certificados.push(certRecord);
+            localStorage.setItem('huerta_clients', JSON.stringify(clients));
+
+            // Marcar para sync y notificar admin
+            if (!pendingSyncClients.includes(folio)) {
+                pendingSyncClients.push(folio);
+                localStorage.setItem('huerta_pending_clients', JSON.stringify(pendingSyncClients));
+            }
+            try { updatePendingBadge(); } catch(e) {}
+            sendAdminNotification('certificado_emitido', {
+                folio, titular: c.nombre, numCert, fechaEmision, paquete: c.nombrePaquete, precioTotal: c.precioTotal
+            });
+
+            // QR SVG simple (cuadrícula de datos del certificado — visual, no scannable)
+            // Usamos una representación visual del hash en forma de cuadrícula
+            const qrData = hash.substring(0,16);
+            let qrSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21" width="80" height="80">';
+            qrSvg += '<rect width="21" height="21" fill="white"/>';
+            // Patrón de esquinas fijo (finder patterns)
+            [[0,0],[14,0],[0,14]].forEach(([x,y])=>{
+                qrSvg += `<rect x="${x}" y="${y}" width="7" height="7" fill="#0f172a"/>`;
+                qrSvg += `<rect x="${x+1}" y="${y+1}" width="5" height="5" fill="white"/>`;
+                qrSvg += `<rect x="${x+2}" y="${y+2}" width="3" height="3" fill="#0f172a"/>`;
+            });
+            // Datos del hash como píxeles en la cuadrícula central
+            for(let i=0;i<qrData.length;i++){
+                const val = parseInt(qrData[i],16);
+                const row = Math.floor(i/4) + 8;
+                const col = (i%4) + 8;
+                if(val>7) qrSvg += `<rect x="${col}" y="${row}" width="1" height="1" fill="#0f172a"/>`;
+            }
+            qrSvg += '</svg>';
+
+            const htmlCert = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Certificado ${numCert}</title>
+<style>
+  @page { size: letter; margin: 1.4cm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Georgia, 'Times New Roman', serif; font-size: 10.5pt; color: #0f172a; background: #fff; position: relative; }
+
+  /* Marca de agua */
+  body::before {
+    content: "DOCUMENTO OFICIAL";
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-35deg);
+    font-size: 64pt;
+    font-weight: 900;
+    color: rgba(0,100,0,0.06);
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 0;
+    letter-spacing: 0.15em;
+  }
+
+  .contenido { position: relative; z-index: 1; }
+
+  /* Marco decorativo exterior */
+  .marco-ext {
+    border: 4px double #1e3a1e;
+    border-radius: 6px;
+    padding: 24px;
+    min-height: 96vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .marco-int {
+    border: 1.5px solid #2d5a2d;
+    border-radius: 4px;
+    padding: 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* Encabezado */
+  .header { text-align: center; border-bottom: 2px solid #1e3a1e; padding-bottom: 12px; }
+  .sello-logo { display: inline-block; border: 3px solid #1e3a1e; border-radius: 50%; width: 70px; height: 70px; line-height: 70px; font-size: 24pt; font-weight: 900; color: #1e3a1e; margin-bottom: 8px; }
+  .empresa-nombre { font-size: 17pt; font-weight: 900; color: #1e3a1e; text-transform: uppercase; letter-spacing: 0.05em; }
+  .empresa-sub { font-size: 7.5pt; color: #4a7c4a; letter-spacing: 0.15em; margin-top: 2px; text-transform: uppercase; }
+
+  /* Título del documento */
+  .titulo-doc { text-align: center; background: #1e3a1e; color: #fff; padding: 10px; border-radius: 4px; }
+  .titulo-doc h1 { font-size: 16pt; letter-spacing: 0.08em; text-transform: uppercase; }
+  .titulo-doc p { font-size: 8pt; color: #90c090; margin-top: 4px; letter-spacing: 0.1em; }
+
+  /* Número de certificado */
+  .num-cert { text-align: center; }
+  .num-cert-label { font-size: 7.5pt; text-transform: uppercase; color: #4a7c4a; letter-spacing: 0.12em; }
+  .num-cert-valor { font-size: 14pt; font-weight: 900; font-family: 'Courier New', monospace; color: #1e3a1e; letter-spacing: 0.05em; }
+
+  /* Secciones de datos */
+  .seccion { border: 1px solid #c8dfc8; border-radius: 4px; padding: 10px 14px; background: #f8fff8; }
+  .sec-title { font-size: 7.5pt; text-transform: uppercase; font-weight: 900; color: #4a7c4a; letter-spacing: 0.12em; margin-bottom: 7px; border-bottom: 1px solid #c8dfc8; padding-bottom: 4px; }
+  .campo { display: flex; gap: 8px; margin-bottom: 4px; font-size: 9.5pt; line-height: 1.4; }
+  .campo-label { font-weight: 700; color: #1e3a1e; min-width: 130px; flex-shrink: 0; }
+  .campo-valor { color: #0f172a; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* Declaración central */
+  .declaracion {
+    text-align: center;
+    padding: 14px;
+    border: 2px solid #1e3a1e;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #f0fff0 0%, #fff 100%);
+  }
+  .declaracion p { font-size: 11pt; line-height: 1.7; color: #0f172a; }
+  .declaracion strong { color: #1e3a1e; font-size: 12pt; }
+
+  /* Sección de seguridad */
+  .seguridad { background: #0f172a; color: #fff; border-radius: 4px; padding: 10px 14px; }
+  .seg-title { font-size: 7pt; text-transform: uppercase; letter-spacing: 0.15em; color: #90c090; margin-bottom: 6px; }
+  .seg-grid { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; }
+  .hash-code { font-family: 'Courier New', monospace; font-size: 7.5pt; color: #4ade80; letter-spacing: 0.08em; word-break: break-all; }
+  .hash-label { font-size: 6.5pt; color: #64748b; margin-top: 3px; }
+
+  /* Firmas */
+  .firmas { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: auto; }
+  .firma-box { text-align: center; border-top: 1.5px solid #1e3a1e; padding-top: 8px; }
+  .firma-nombre { font-weight: 700; font-size: 9pt; text-transform: uppercase; }
+  .firma-cargo { font-size: 7.5pt; color: #4a7c4a; }
+
+  /* Footer */
+  .footer { text-align: center; font-size: 6.5pt; color: #64748b; border-top: 1px solid #c8dfc8; padding-top: 8px; }
+
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body::before { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="contenido">
+<div class="marco-ext">
+<div class="marco-int">
+
+  <!-- Encabezado -->
+  <div class="header">
+    <div class="sello-logo">FH</div>
+    <div class="empresa-nombre">Servicios Funerarios Huerta</div>
+    <div class="empresa-sub">Xalapa, Veracruz · Calidez y Honestidad</div>
+  </div>
+
+  <!-- Título -->
+  <div class="titulo-doc">
+    <h1>Certificado de Liquidación Total</h1>
+    <p>Documento Oficial de Finiquito de Servicio de Previsión Social</p>
+  </div>
+
+  <!-- Número de certificado -->
+  <div class="num-cert">
+    <div class="num-cert-label">Número de Certificado</div>
+    <div class="num-cert-valor">${numCert}</div>
+    <div style="font-size:7pt;color:#4a7c4a;margin-top:3px;">Emitido el ${fechaEmision} a las ${horaEmision} hrs. · Folio de contrato: ${c.folio}</div>
+  </div>
+
+  <!-- Declaración -->
+  <div class="declaracion">
+    <p>Por medio del presente documento, <strong>SERVICIOS FUNERARIOS HUERTA</strong> certifica que el titular</p>
+    <p style="font-size:15pt;font-weight:900;color:#1e3a1e;margin:8px 0;">${c.nombre}</p>
+    <p>ha liquidado la totalidad del importe correspondiente al plan de previsión funeraria contratado, quedando <strong>libre de cualquier adeudo</strong> y con todos los derechos del servicio plenamente vigentes.</p>
+  </div>
+
+  <!-- Datos -->
+  <div class="grid2">
+    <div class="seccion">
+      <div class="sec-title">Datos del Titular</div>
+      <div class="campo"><span class="campo-label">Nombre completo:</span><span class="campo-valor">${c.nombre}</span></div>
+      <div class="campo"><span class="campo-label">Identificación:</span><span class="campo-valor">${c.identificacion}</span></div>
+      <div class="campo"><span class="campo-label">Teléfono:</span><span class="campo-valor">${c.telefono}</span></div>
+      ${c.correo ? `<div class="campo"><span class="campo-label">Correo:</span><span class="campo-valor">${c.correo}</span></div>` : ''}
+      <div class="campo"><span class="campo-label">Asesor:</span><span class="campo-valor">${c.asesor || '—'}</span></div>
+    </div>
+    <div class="seccion">
+      <div class="sec-title">Beneficiarios Designados</div>
+      <div class="campo"><span class="campo-label">Beneficiario 1:</span><span class="campo-valor">${b1}${t1?' · '+t1:''}</span></div>
+      ${b2?`<div class="campo"><span class="campo-label">Beneficiario 2:</span><span class="campo-valor">${b2}${t2?' · '+t2:''}</span></div>`:''}
+      <div style="margin-top:10px;" class="sec-title">Historial de Pagos</div>
+      <div class="campo"><span class="campo-label">Primer abono:</span><span class="campo-valor">${primerPago}</span></div>
+      <div class="campo"><span class="campo-label">Último abono:</span><span class="campo-valor">${ultimoPago}</span></div>
+      <div class="campo"><span class="campo-label">Total de abonos:</span><span class="campo-valor">${contratoPayments.length} movimientos</span></div>
+    </div>
+  </div>
+
+  <div class="seccion">
+    <div class="sec-title">Servicio Contratado y Liquidado</div>
+    <div class="grid2">
+      <div>
+        <div class="campo"><span class="campo-label">Plan / Paquete:</span><span class="campo-valor" style="font-weight:700;">${c.nombrePaquete}</span></div>
+        <div class="campo"><span class="campo-label">Folio de póliza:</span><span class="campo-valor" style="font-family:monospace;font-weight:700;">${c.folio}</span></div>
+        <div class="campo"><span class="campo-label">Fecha de contrato:</span><span class="campo-valor">${c.fechaRegistro}</span></div>
+      </div>
+      <div>
+        <div class="campo"><span class="campo-label">Importe total:</span><span class="campo-valor" style="font-weight:900;font-size:12pt;color:#1e3a1e;">$${c.precioTotal.toLocaleString()} M.N.</span></div>
+        <div class="campo"><span class="campo-label">Total pagado:</span><span class="campo-valor" style="font-weight:700;color:#15803d;">$${c.montoPagado.toLocaleString()} M.N.</span></div>
+        <div class="campo"><span class="campo-label">Saldo restante:</span><span class="campo-valor" style="font-weight:700;color:#15803d;">$0.00 M.N. ✓</span></div>
+      </div>
+    </div>
+    <div style="margin-top:8px;font-size:8.5pt;color:#4a7c4a;border-top:1px solid #c8dfc8;padding-top:6px;">
+      Este plan otorga al titular y/o beneficiarios el derecho a recibir los servicios funerarios descritos en el contrato de adhesión folio ${c.folio},
+      incluyendo traslado, capilla de velación, ataúd del plan seleccionado, arreglo estético, trámites y todos los servicios acordados, sin costo adicional al momento de utilizarlo.
+    </div>
+  </div>
+
+  <!-- Seguridad -->
+  <div class="seguridad">
+    <div class="seg-title">🔐 Datos de Verificación de Autenticidad — No reproducible sin los datos originales del sistema</div>
+    <div class="seg-grid">
+      <div style="text-align:center;">${qrSvg}</div>
+      <div>
+        <div class="hash-label">Código de verificación SHA-256 (primeros 24 dígitos):</div>
+        <div class="hash-code">${hash}</div>
+        <div class="hash-label" style="margin-top:6px;">Número de certificado:</div>
+        <div class="hash-code">${numCert}</div>
+        <div class="hash-label" style="margin-top:6px;">Para verificar la autenticidad de este documento comuníquese al (228) 468 42 83 proporcionando el número de certificado y folio.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firmas -->
+  <div class="firmas">
+    <div class="firma-box">
+      <div style="height:55px;display:flex;align-items:center;justify-content:center;">
+        ${c.firmaBase64 ? `<img src="${c.firmaBase64}" style="max-height:50px;object-fit:contain;">` : '<div style="font-size:8pt;color:#94a3b8;font-style:italic;">Firma del titular en contrato original</div>'}
+      </div>
+      <div class="firma-nombre">${c.nombre}</div>
+      <div class="firma-cargo">Titular del Plan · Folio ${c.folio}</div>
+    </div>
+    <div class="firma-box">
+      <div style="height:55px;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#15803d;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+        <span style="font-size:6.5pt;font-weight:900;letter-spacing:0.1em;color:#15803d;margin-top:3px;">SELLO DIGITAL HUERTA</span>
+      </div>
+      <div class="firma-nombre">Servicios Funerarios Huerta</div>
+      <div class="firma-cargo">Representante Autorizado · Xalapa, Ver.</div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <p>Este certificado es un documento oficial emitido por Servicios Funerarios Huerta · Nicolás Bravo 11-A, Col. Centro, C.P. 91000, Xalapa, Veracruz</p>
+    <p style="margin-top:3px;">Tel: (228) 468 42 83 · WhatsApp: 228 184 5114 · funeraleshuerta20@gmail.com · #SOMOSFUNERALESHUERTA</p>
+    <p style="margin-top:3px;font-weight:700;">Certificado N° ${numCert} · Emitido: ${fechaEmision} ${horaEmision} · Hash: ${hash}</p>
+  </div>
+
+</div>
+</div>
+</div>
+</body>
+</html>`;
+
+            // Imprimir con iframe
+            let iframe = document.getElementById('_print_iframe_cert');
+            if (!iframe) {
+                iframe = document.createElement('iframe');
+                iframe.id = '_print_iframe_cert';
+                iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0;';
+                document.body.appendChild(iframe);
+            }
+            const iDoc = iframe.contentWindow.document;
+            iDoc.open(); iDoc.write(htmlCert); iDoc.close();
+            iframe.onload = function() {
+                setTimeout(function() {
+                    try { iframe.contentWindow.focus(); iframe.contentWindow.print(); }
+                    catch(e) { const w = window.open('','_blank','width=900,height=1100'); if(w){w.document.write(htmlCert);w.document.close();} }
+                }, 400);
+            };
+            showToast(`✅ Certificado ${numCert} generado y registrado.`, 'success');
+        }
         function exportFirmas() {
             const firmados = clients.filter(c => c.firmaBase64);
             if (firmados.length === 0) {
@@ -3058,7 +3397,7 @@ function doPost(e) {
                     '<div class="pt-2 border-t border-slate-900 flex flex-wrap gap-2">' +
                         '<button onclick="printContract(\'' + c.folio + '\')" class="bg-amber-600 hover:bg-amber-700 text-slate-950 text-xs font-bold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="printer" class="h-3.5 w-3.5"></i> Imprimir</button>' +
                         '<button onclick="sendWhatsAppContract(\'' + c.folio + '\')" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="send" class="h-3.5 w-3.5"></i> WhatsApp</button>' +
-                        (status !== 'liquidado' ? '<button onclick="openPaymentModalWithClient(\'' + c.folio + '\')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="dollar-sign" class="h-3.5 w-3.5"></i> Abonar</button>' : '<span class="text-[10px] px-3 py-2 rounded bg-emerald-950/30 text-emerald-500 border border-emerald-700/30 font-bold">✓ LIQUIDADO</span>') +
+                        (status !== 'liquidado' ? '<button onclick="openPaymentModalWithClient(\'' + c.folio + '\')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="dollar-sign" class="h-3.5 w-3.5"></i> Abonar</button>' : '<button onclick="printCertificado(\'' + c.folio + '\')" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="award" class="h-3.5 w-3.5"></i> Certificado</button>') +
                         '<button onclick="openClientHistory(\'' + c.folio + '\')" class="bg-slate-900 border border-emerald-700/40 hover:bg-emerald-950/30 text-emerald-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="clock" class="h-3.5 w-3.5"></i> Historial</button>' +
                         '<button onclick="openNewSignatureBox(\'' + c.folio + '\')" class="bg-slate-900 border border-slate-700 hover:text-white text-slate-400 text-xs px-3 py-2 rounded">Firma</button>' +
                         '<button onclick="openTiendaPaquete(\'' + c.folio + '\')" class="bg-slate-900 border border-emerald-800/50 hover:border-emerald-500 text-emerald-500 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="shopping-bag" class="h-3.5 w-3.5"></i> Tienda</button>' +
