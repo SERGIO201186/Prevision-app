@@ -2952,7 +2952,9 @@ function doPost(e) {
     display: flex;
     flex-direction: column;
     gap: 7px;
+    justify-content: space-between;
   }
+  .marco-int-top { display: flex; flex-direction: column; gap: 7px; }
 
   /* Encabezado compacto — logo + nombre en fila */
   .header {
@@ -3040,6 +3042,7 @@ function doPost(e) {
 <div class="marco-ext">
 <div class="marco-int">
 
+<div class="marco-int-top">
   <!-- Encabezado horizontal compacto -->
   <div class="header">
     <div class="sello-logo">FH</div>
@@ -3115,6 +3118,7 @@ function doPost(e) {
       incluyendo traslado, capilla de velación, ataúd del plan seleccionado, arreglo estético, trámites y todos los servicios acordados, sin costo adicional al momento de utilizarlo.
     </div>
   </div>
+</div><!-- /marco-int-top -->
 
   <!-- Seguridad -->
   <div class="seguridad">
@@ -3135,10 +3139,10 @@ function doPost(e) {
   <div class="firmas">
     <div class="firma-box">
       <div class="firma-img-area">
-        \${c.firmaBase64 ? '<img src="' + c.firmaBase64 + '" style="max-height:40px;object-fit:contain;">' : '<span style="font-size:7pt;color:#94a3b8;font-style:italic;">Firma en contrato original</span>'}
+        ${c.firmaBase64 ? '<img src="' + c.firmaBase64 + '" style="max-height:40px;object-fit:contain;">' : '<span style="font-size:7pt;color:#94a3b8;font-style:italic;">Firma en contrato original</span>'}
       </div>
-      <div class="firma-nombre">\${c.nombre}</div>
-      <div class="firma-cargo">Titular del Plan · Folio \${c.folio}</div>
+      <div class="firma-nombre">${c.nombre}</div>
+      <div class="firma-cargo">Titular del Plan · Folio ${c.folio}</div>
     </div>
     <div class="firma-box">
       <div class="firma-img-area" style="flex-direction:column;color:#15803d;">
@@ -3153,7 +3157,7 @@ function doPost(e) {
   <!-- Footer -->
   <div class="footer">
     <p>Documento oficial · Servicios Funerarios Huerta · Nicolás Bravo 11-A, C.P. 91000, Xalapa, Ver. · Tel: (228) 468 42 83 · WA: 228 184 5114</p>
-    <p style="margin-top:2px;font-weight:700;">N° \${numCert} · \${fechaEmision} \${horaEmision} · Hash: \${hash}</p>
+    <p style="margin-top:2px;font-weight:700;">N° ${numCert} · ${fechaEmision} ${horaEmision} · Hash: ${hash}</p>
   </div>
 
 </div>
