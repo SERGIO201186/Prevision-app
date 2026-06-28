@@ -2908,14 +2908,18 @@ function doPost(e) {
 <style>
   @page { size: 216mm 356mm; margin: 1.0cm 1.1cm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; }
+  html { height: 100%; }
   body {
     font-family: Georgia, 'Times New Roman', serif;
     font-size: 8.8pt;
     color: #0f172a;
     background: #fff;
     position: relative;
-    height: 100%;
+    min-height: 100vh;
+  }
+  /* En impresión: ocupar exactamente la hoja menos márgenes */
+  @media print {
+    html, body { height: 100%; min-height: unset; }
   }
 
   /* Marca de agua — fija para que aparezca sola en la hoja */
@@ -2933,7 +2937,8 @@ function doPost(e) {
     letter-spacing: 0.15em;
   }
 
-  .contenido { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; }
+  .contenido { position: relative; z-index: 1; display: flex; flex-direction: column; min-height: 100vh; }
+  @media print { .contenido { height: 100%; min-height: unset; } }
 
   /* Marco decorativo — ocupa toda la altura de la hoja */
   .marco-ext {
@@ -3166,22 +3171,32 @@ function doPost(e) {
 </body>
 </html>`;
 
-            // Imprimir con iframe
+            // Imprimir con iframe usando Blob URL (evita bloqueos de document.write y Data URLs)
+            const blob = new Blob([htmlCert], { type: 'text/html;charset=utf-8' });
+            const blobUrl = URL.createObjectURL(blob);
+
             let iframe = document.getElementById('_print_iframe_cert');
-            if (!iframe) {
-                iframe = document.createElement('iframe');
-                iframe.id = '_print_iframe_cert';
-                iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0;';
-                document.body.appendChild(iframe);
-            }
-            const iDoc = iframe.contentWindow.document;
-            iDoc.open(); iDoc.write(htmlCert); iDoc.close();
+            if (iframe) iframe.remove(); // Siempre recrear para evitar estado sucio
+            iframe = document.createElement('iframe');
+            iframe.id = '_print_iframe_cert';
+            // Tamaño visible necesario para que el navegador renderice imágenes base64
+            iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:216mm;height:356mm;border:0;opacity:0;pointer-events:none;';
+            document.body.appendChild(iframe);
+
+            // Asignar onload ANTES de asignar src
             iframe.onload = function() {
                 setTimeout(function() {
-                    try { iframe.contentWindow.focus(); iframe.contentWindow.print(); }
-                    catch(e) { const w = window.open('','_blank','width=900,height=1100'); if(w){w.document.write(htmlCert);w.document.close();} }
-                }, 400);
+                    try {
+                        iframe.contentWindow.focus();
+                        iframe.contentWindow.print();
+                    } catch(e) {
+                        const w = window.open('','_blank','width=900,height=1100');
+                        if(w){ w.document.write(htmlCert); w.document.close(); }
+                    }
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+                }, 600);
             };
+            iframe.src = blobUrl;
             showToast(`✅ Certificado ${numCert} generado y registrado.`, 'success');
         }
         function exportFirmas() {
