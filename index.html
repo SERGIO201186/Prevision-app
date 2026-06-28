@@ -207,35 +207,69 @@ self.addEventListener('message', function(event) {
                 <h2 class="text-xl font-serif font-bold text-slate-100">Servicios Funerarios Huerta</h2>
                 <p class="text-xs text-slate-400 mt-1">Control de Previsión Familiar</p>
             </div>
-            <form onsubmit="handleLogin(event)" class="space-y-4">
+
+            <!-- Tabs PIN / Usuario -->
+            <div class="flex gap-2 mb-5 bg-slate-950 rounded-lg p-1">
+                <button type="button" id="login-tab-pin" onclick="switchLoginTab('pin')" class="flex-1 text-xs font-bold py-2 rounded-md bg-amber-600 text-slate-950">PIN</button>
+                <button type="button" id="login-tab-up" onclick="switchLoginTab('up')" class="flex-1 text-xs font-bold py-2 rounded-md text-slate-400">Usuario</button>
+            </div>
+
+            <!-- PANEL PIN -->
+            <div id="login-pin-panel" class="flex flex-col items-center">
+                <div class="flex gap-3 mb-5" id="login-pin-dots">
+                    <span id="login-pd0" class="w-3.5 h-3.5 rounded-full border border-amber-500"></span>
+                    <span id="login-pd1" class="w-3.5 h-3.5 rounded-full border border-amber-500"></span>
+                    <span id="login-pd2" class="w-3.5 h-3.5 rounded-full border border-amber-500"></span>
+                    <span id="login-pd3" class="w-3.5 h-3.5 rounded-full border border-amber-500"></span>
+                </div>
+                <div class="grid grid-cols-3 gap-2 w-full max-w-[220px]">
+                    <button type="button" onclick="pinPress('1')" class="bg-slate-950 border border-slate-700 text-slate-100 rounded-lg py-3 text-lg font-semibold hover:border-amber-500">1</button>
+                    <button type="button" onclick="pinPress('2')" class="bg-slate-950 border border-slate-700 text-slate-100 rounded-lg py-3 text-lg font-semibold hover:border-amber-500">2</button>
+                    <button type="button" onclick="pinPress('3')" class="bg-slate-950 border border-slate-700 text-slate-100 rounded-lg py-3 text-lg font-semibold hover:border-amber-500">3</button>
+                    <button type="button" onclick="pinPress('4')" class="bg-slate-950 border border-slate-700 text-slate-100 rounded-lg py-3 text-lg font-semibold hover:border-amber-500">4</button>
+                    <button type="button" onclick="pinPress('5')" class="bg-slate-950 border border-slate-700 text-slate-100 rounded-lg py-3 text-lg font-semibold hover:border-amber-500">5</button>
+                    <button type="button" onclick="pinPress('6')" class="bg-slate-950 border border-slate-700 text-slate-100 rounded-lg py-3 text-lg font-semibold hover:border-amber-500">6</button>
+                    <button type="button" onclick="pinPress('7')" class="bg-slate-950 border border-slate-700 text-slate-100 rounded-lg py-3 text-lg font-semibold hover:border-amber-500">7</button>
+                    <button type="button" onclick="pinPress('8')" class="bg-slate-950 border border-slate-700 text-slate-100 rounded-lg py-3 text-lg font-semibold hover:border-amber-500">8</button>
+                    <button type="button" onclick="pinPress('9')" class="bg-slate-950 border border-slate-700 text-slate-100 rounded-lg py-3 text-lg font-semibold hover:border-amber-500">9</button>
+                    <button type="button" onclick="pinDelete()" class="bg-slate-950 border border-slate-700 text-slate-400 rounded-lg py-3 text-xs font-bold hover:border-amber-500">⌫</button>
+                    <button type="button" onclick="pinPress('0')" class="bg-slate-950 border border-slate-700 text-slate-100 rounded-lg py-3 text-lg font-semibold hover:border-amber-500">0</button>
+                    <button type="button" onclick="doLoginPin()" class="bg-amber-600 hover:bg-amber-700 text-slate-950 rounded-lg py-3 text-xs font-bold">OK</button>
+                </div>
+                <p id="login-pin-status" class="text-xs text-red-400 mt-3 h-4"></p>
+            </div>
+
+            <!-- PANEL USUARIO / CONTRASEÑA -->
+            <form id="login-up-panel" class="hidden space-y-4" onsubmit="handleLogin(event)">
                 <div>
                     <label class="block text-xs text-slate-400 mb-1">Nombre de Usuario</label>
-                    <input type="text" id="login-username" required placeholder="Ej. admin" class="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white focus:outline-none focus:border-amber-500 text-sm">
+                    <input type="text" id="login-username" placeholder="Ej. admin" class="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white focus:outline-none focus:border-amber-500 text-sm">
                 </div>
                 <div>
                     <label class="block text-xs text-slate-400 mb-1">Contraseña</label>
-                    <input type="password" id="login-password" required autocomplete="current-password" placeholder="••••••••" class="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white focus:outline-none focus:border-amber-500 text-sm">
+                    <input type="password" id="login-password" autocomplete="current-password" placeholder="••••••••" class="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white focus:outline-none focus:border-amber-500 text-sm">
                 </div>
                 <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold py-3 rounded-lg transition duration-200">
                     Iniciar Sesión
                 </button>
-
-                <!-- Botón de instalación PWA — visible solo cuando el navegador lo permite -->
-                <button type="button" id="btn-install-pwa-login" onclick="triggerPwaInstall()"
-                    class="hidden w-full flex items-center justify-center gap-2 border border-emerald-600/50 text-emerald-400 hover:bg-emerald-950/40 text-sm font-semibold py-2.5 rounded-lg transition duration-200">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Instalar App en este dispositivo
-                </button>
-
-                <!-- Acceso de emergencia: secreto, solo tecleando 5 veces en el logo FH se activa -->
-                <div id="hidden-emergency-counter" style="display:none"></div>
             </form>
+
+            <!-- Botón de instalación PWA — visible solo cuando el navegador lo permite -->
+            <button type="button" id="btn-install-pwa-login" onclick="triggerPwaInstall()"
+                class="hidden w-full mt-4 flex items-center justify-center gap-2 border border-emerald-600/50 text-emerald-400 hover:bg-emerald-950/40 text-sm font-semibold py-2.5 rounded-lg transition duration-200">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Instalar App en este dispositivo
+            </button>
+
+            <!-- Acceso de emergencia: secreto, solo tecleando 5 veces en el logo FH se activa -->
+            <div id="hidden-emergency-counter" style="display:none"></div>
 
             <!-- Indicador offline en login -->
             <div id="login-offline-badge" class="hidden mt-4 flex items-center justify-center gap-2 text-[11px] text-amber-400">
                 <span class="h-2 w-2 rounded-full bg-amber-500"></span>
                 Sin Internet — puedes iniciar sesión igual
             </div>
+            <p class="text-[11px] text-slate-500 text-center mt-3">El PIN y usuario/contraseña funcionan en AMBAS aplicaciones Huerta.</p>
         </div>
     </div>
 
@@ -830,7 +864,10 @@ self.addEventListener('message', function(event) {
                         </div>
                     </div>
                     <!-- Preview descripción del paquete seleccionado -->
-                    <div id="nc-paquete-preview" class="hidden bg-amber-950/20 border border-amber-800/30 rounded-lg p-3 text-xs text-slate-300 leading-relaxed"></div>
+                    <div id="nc-paquete-preview-wrap" class="hidden bg-amber-950/20 border border-amber-800/30 rounded-lg p-3 flex items-center gap-3">
+                        <img id="nc-paquete-img" class="hidden w-16 h-16 object-cover rounded-lg border border-amber-800/40" alt="Vista previa">
+                        <div id="nc-paquete-preview" class="text-xs text-slate-300 leading-relaxed"></div>
+                    </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs text-slate-400 mb-1">Asesor Responsable *</label>
@@ -1753,43 +1790,111 @@ self.addEventListener('message', function(event) {
             window.location.reload();
         }
 
-        function handleLogin(e) {
+        // URL del backend COMPARTIDO entre ODS y Previsiones (mismo PIN/usuario en ambas apps).
+        // Esta es independiente de la URL de sincronización de contratos/previsiones.
+        const APP_AUTH_URL = 'https://script.google.com/macros/s/AKfycbyaM1b3L0ZhcTlIaGU-Lm0h9jJfrwkVdIKkSu674_ycUOepsWF3CYEtIGgyyGlqG37FUQ/exec';
+
+        let LOGIN_PIN = '';
+        function switchLoginTab(tab) {
+            document.getElementById('login-pin-panel').classList.toggle('hidden', tab !== 'pin');
+            document.getElementById('login-up-panel').classList.toggle('hidden', tab === 'pin');
+            document.getElementById('login-tab-pin').className = 'flex-1 text-xs font-bold py-2 rounded-md ' + (tab === 'pin' ? 'bg-amber-600 text-slate-950' : 'text-slate-400');
+            document.getElementById('login-tab-up').className = 'flex-1 text-xs font-bold py-2 rounded-md ' + (tab === 'up' ? 'bg-amber-600 text-slate-950' : 'text-slate-400');
+        }
+        function updateLoginPinDots() {
+            for (let i = 0; i < 4; i++) {
+                const dot = document.getElementById('login-pd' + i);
+                if (dot) dot.className = 'w-3.5 h-3.5 rounded-full border border-amber-500' + (i < LOGIN_PIN.length ? ' bg-amber-500' : '');
+            }
+        }
+        function pinPress(n) {
+            if (LOGIN_PIN.length >= 4) return;
+            LOGIN_PIN += n;
+            updateLoginPinDots();
+            if (LOGIN_PIN.length === 4) setTimeout(doLoginPin, 150);
+        }
+        function pinDelete() {
+            LOGIN_PIN = LOGIN_PIN.slice(0, -1);
+            updateLoginPinDots();
+        }
+
+        async function intentarAccesoCompartido(payload) {
+            try {
+                const res = await fetch(APP_AUTH_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(Object.assign({ accion: 'validarAcceso' }, payload))
+                });
+                const data = await res.json();
+                if (data && data.ok && data.colaborador) return data.colaborador;
+            } catch (err) { /* sin conexión: seguimos con el respaldo local */ }
+            return null;
+        }
+
+        function entrarConColaborador(colaborador, userInLocal) {
+            const sesion = {
+                id: colaborador.id || 'compartido', nombre: colaborador.nombre || 'Colaborador',
+                puesto: colaborador.puesto || '', telefono: colaborador.telefono || '',
+                usuario: userInLocal || '', estatus: 'Activo'
+            };
+            currentActiveUser = sesion;
+            localStorage.setItem('huerta_session', JSON.stringify(sesion));
+            document.getElementById('login-screen').style.display = 'none';
+            try { initApp(); } catch (err) { console.error('initApp error:', err); }
+            try { cargarTiendaCache(); } catch (err) {}
+            const firstName = (sesion.nombre || '').split(' ')[0];
+            showToast('Bienvenido/a, ' + firstName + '! ✓', 'success');
+        }
+
+        async function doLoginPin() {
+            const pin = LOGIN_PIN;
+            if (pin.length !== 4) { document.getElementById('login-pin-status').textContent = 'Ingresa los 4 dígitos'; return; }
+
+            // 1. Backend compartido (mismo PIN que en la app de ODS / Panel)
+            const colaborador = await intentarAccesoCompartido({ pin });
+            if (colaborador) { entrarConColaborador(colaborador); LOGIN_PIN = ''; updateLoginPinDots(); return; }
+
+            // 2. PIN maestro de emergencia (sin nube)
+            if (pin === '0000') { entrarConColaborador({ id: 'ADMIN', nombre: 'Administrador', puesto: 'Administrador General' }); LOGIN_PIN = ''; updateLoginPinDots(); return; }
+
+            // 3. Respaldo: colaboradores locales con PIN propio (compatibilidad con datos previos)
+            let emps = [];
+            try { emps = JSON.parse(localStorage.getItem('huerta_employees')) || []; } catch (ex) { emps = []; }
+            const foundLocal = emps.find(function (emp) { return String(emp.pin || '') === pin && emp.estatus === 'Activo'; });
+            if (foundLocal) { entrarConColaborador(foundLocal); LOGIN_PIN = ''; updateLoginPinDots(); return; }
+
+            document.getElementById('login-pin-status').textContent = 'PIN incorrecto';
+            LOGIN_PIN = ''; updateLoginPinDots();
+        }
+
+        async function handleLogin(e) {
             e.preventDefault();
             const userIn = document.getElementById('login-username').value.trim();
             const passIn = document.getElementById('login-password').value.trim();
+            if (!userIn || !passIn) { showToast('Ingresa usuario y contraseña', 'error'); return; }
 
-            // Recargar empleados frescos del localStorage para evitar datos obsoletos en memoria
+            // 1. Backend compartido (mismo usuario/contraseña que en la app de ODS / Panel)
+            const colaborador = await intentarAccesoCompartido({ usuario: userIn, contrasena: passIn });
+            if (colaborador) { entrarConColaborador(colaborador, userIn); return; }
+
+            // 2. Respaldo local (cuentas creadas solo dentro de esta app, ej. admin/1234)
             let emps = [];
-            try { emps = JSON.parse(localStorage.getItem('huerta_employees')) || []; } catch(ex) { emps = []; }
-
-            // Garantizar que exista cuenta admin con contraseña válida
-            const adminIdx = emps.findIndex(function(e){ return e.id === 'admin-default' || e.usuario === 'admin'; });
+            try { emps = JSON.parse(localStorage.getItem('huerta_employees')) || []; } catch (ex) { emps = []; }
+            const adminIdx = emps.findIndex(function (e) { return e.id === 'admin-default' || e.usuario === 'admin'; });
             if (adminIdx === -1) {
-                emps.unshift({ id:'admin-default', nombre:'Administrador General', puesto:'Director General', telefono:'2281845114', estatus:'Activo', usuario:'admin', contrasena:'1234' });
+                emps.unshift({ id: 'admin-default', nombre: 'Administrador General', puesto: 'Director General', telefono: '2281845114', estatus: 'Activo', usuario: 'admin', contrasena: '1234' });
                 localStorage.setItem('huerta_employees', JSON.stringify(emps));
-            } else {
-                // Si el admin existe pero no tiene contraseña (corrompido por sincronización), restaurarla
-                if (!emps[adminIdx].contrasena) {
-                    emps[adminIdx].contrasena = '1234';
-                    localStorage.setItem('huerta_employees', JSON.stringify(emps));
-                }
+            } else if (!emps[adminIdx].contrasena) {
+                emps[adminIdx].contrasena = '1234';
+                localStorage.setItem('huerta_employees', JSON.stringify(emps));
             }
             employees = emps;
 
-            // Buscar usuario activo con usuario y contraseña correctos (comparación robusta como string)
-            const found = emps.find(function(emp){ 
-                return emp.usuario === userIn && 
-                       String(emp.contrasena) === String(passIn) && 
-                       emp.estatus === 'Activo'; 
+            const found = emps.find(function (emp) {
+                return emp.usuario === userIn && String(emp.contrasena) === String(passIn) && emp.estatus === 'Activo';
             });
 
             if (found) {
-                currentActiveUser = found;
-                localStorage.setItem('huerta_session', JSON.stringify(found));
-                document.getElementById('login-screen').style.display = 'none';
-                try { initApp(); } catch(err) { console.error('initApp error:', err); }
-                const firstName = found.nombre.split(' ')[0];
-                showToast('Bienvenido/a, ' + firstName + '! ✓', 'success');
+                entrarConColaborador(found, userIn);
             } else {
                 showToast('Usuario o contraseña incorrectos. Verifica tus datos.', 'error');
                 document.getElementById('login-password').value = '';
@@ -1804,6 +1909,7 @@ self.addEventListener('message', function(event) {
                     currentActiveUser = JSON.parse(savedSession);
                     document.getElementById('login-screen').style.display = 'none';
                     try { initApp(); } catch(err) { console.error('initApp error:', err); }
+                    try { cargarTiendaCache(); } catch(err) {}
                 }
             } catch(e) {
                 localStorage.removeItem('huerta_session');
@@ -1816,6 +1922,8 @@ self.addEventListener('message', function(event) {
             document.getElementById('login-screen').style.display = 'flex';
             document.getElementById('login-username').value = '';
             document.getElementById('login-password').value = '';
+            LOGIN_PIN = ''; updateLoginPinDots();
+            switchLoginTab('pin');
         }
 
         // --- MANEJO DE TOASTS (MENSAJES RAPIDOS) ---
@@ -2535,7 +2643,12 @@ function doPost(e) {
         // --- MANEJO DE NUEVOS CONTRATOS (PAQUETES Y PRECIOS RECONSTITUIDOS) ---
         function populatePackages() {
             const selCont = document.getElementById('nc-paquete');
-            selCont.innerHTML = PAQUETES.map(p => `<option value="${p.id}">${p.nombre} - $${p.precio.toLocaleString()}</option>`).join('');
+            let opciones = PAQUETES.map(p => `<option value="${p.id}">${p.nombre} - $${p.precio.toLocaleString()}</option>`);
+            const delPanel = (TIENDA_CACHE || []).filter(p => p.segment === 'futuro');
+            if (delPanel.length) {
+                opciones.push('<optgroup label="Planes del Panel">' + delPanel.map(p => `<option value="T:${p.id}">${p.nombre} - $${Number(p.precio).toLocaleString()}</option>`).join('') + '</optgroup>');
+            }
+            selCont.innerHTML = opciones.join('');
             updateNewContractPrice();
         }
 
@@ -2545,8 +2658,26 @@ function doPost(e) {
             asesorSelect.innerHTML = activeAsesores.map(e => `<option value="${e.nombre}">${e.nombre} (${e.puesto})</option>`).join('');
         }
 
-        // ── BÚSQUEDA POR SKU DE TIENDA ──
+        // ── BÚSQUEDA POR SKU DE TIENDA / CATÁLOGO DEL PANEL ──
         const TIENDA_API = 'https://script.google.com/macros/s/AKfycbzJtOwVJ5m2ziBGW2nkQy57x1nOo5ZLuyLtcISgwK1uaMMkoVKsHglDrSBbeJe-idr3Mw/exec';
+        let TIENDA_CACHE = [];
+        async function cargarTiendaCache() {
+            try {
+                const res = await fetch(TIENDA_API);
+                const data = await res.json();
+                if (Array.isArray(data)) { TIENDA_CACHE = data; populatePackages(); }
+            } catch (err) { /* sin conexión, seguimos con los paquetes locales */ }
+        }
+        function buscarImagenTienda(idOrNombre) {
+            const m = (TIENDA_CACHE || []).find(p => String(p.id).toUpperCase() === String(idOrNombre || '').toUpperCase() || p.nombre === idOrNombre);
+            return (m && m.imagen) ? m.imagen : '';
+        }
+        function mostrarImagenPaquete(url) {
+            const img = document.getElementById('nc-paquete-img');
+            if (!img) return;
+            if (url) { img.src = url; img.classList.remove('hidden'); }
+            else { img.classList.add('hidden'); img.removeAttribute('src'); }
+        }
 
         async function lookupSku() {
             const sku = (document.getElementById('nc-sku').value || '').trim().toUpperCase();
@@ -2584,26 +2715,47 @@ function doPost(e) {
             document.getElementById('nc-enganche').value = Math.round(Number(p.precio) * 0.10);
             document.getElementById('nc-cuotas').value = 24;
             const preview = document.getElementById('nc-paquete-preview');
+            const wrap = document.getElementById('nc-paquete-preview-wrap');
             if (preview) {
                 preview.innerHTML = `<span class="font-semibold text-amber-400">${p.nombre}</span>${p.descripcion ? ' · <span class="text-slate-400">' + p.descripcion + '</span>' : ''}`;
-                preview.classList.remove('hidden');
             }
+            if (wrap) wrap.classList.remove('hidden');
+            mostrarImagenPaquete(p.imagen || buscarImagenTienda(p.id));
             recalculateNewContractQuotes();
         }
 
         function updateNewContractPrice() {
             const selectId = document.getElementById('nc-paquete').value;
+            const preview = document.getElementById('nc-paquete-preview');
+            const wrap = document.getElementById('nc-paquete-preview-wrap');
+
+            // Plan traído desde el Panel / Tienda Virtual (prefijo "T:")
+            if (selectId && selectId.indexOf('T:') === 0) {
+                const tid = selectId.slice(2);
+                const item = (TIENDA_CACHE || []).find(p => String(p.id) === tid);
+                if (item) {
+                    document.getElementById('nc-precio').value = Number(item.precio) || 0;
+                    document.getElementById('nc-enganche').value = Math.round((Number(item.precio) || 0) * 0.10);
+                    document.getElementById('nc-cuotas').value = 24;
+                    if (preview) preview.innerHTML = `<span class="font-semibold text-amber-400">${item.nombre}</span>${item.descripcion ? ' · <span class="text-slate-400">' + item.descripcion + '</span>' : ''}`;
+                    if (wrap) wrap.classList.remove('hidden');
+                    mostrarImagenPaquete(item.imagen || '');
+                    recalculateNewContractQuotes();
+                }
+                return;
+            }
+
             const chosen = PAQUETES.find(p => p.id === selectId);
             if (chosen) {
                 document.getElementById('nc-precio').value = chosen.precio;
                 document.getElementById('nc-enganche').value = Math.round(chosen.precio * 0.10);
                 document.getElementById('nc-cuotas').value = 24;
-                const preview = document.getElementById('nc-paquete-preview');
                 if (preview) {
                     const desc = (chosen.incluye||[]).slice(0,5).join(' · ') + (chosen.incluye&&chosen.incluye.length>5?'…':'');
                     preview.innerHTML = `<span class="font-semibold text-amber-400">${chosen.nombre}</span>${desc ? ' · <span class="text-slate-400">' + desc + '</span>' : ''}`;
-                    preview.classList.remove('hidden');
                 }
+                if (wrap) wrap.classList.remove('hidden');
+                mostrarImagenPaquete(buscarImagenTienda(chosen.tiendaId || chosen.nombre));
                 recalculateNewContractQuotes();
             }
         }
@@ -3843,7 +3995,15 @@ function doPost(e) {
                 correo: document.getElementById('nc-correo').value,
                 fechaRegistro: new Date().toISOString().split('T')[0],
                 paqueteId: document.getElementById('nc-paquete').value,
-                nombrePaquete: PAQUETES.find(p => p.id === document.getElementById('nc-paquete').value).nombre,
+                nombrePaquete: (function () {
+                    const selId = document.getElementById('nc-paquete').value;
+                    if (selId && selId.indexOf('T:') === 0) {
+                        const it = (TIENDA_CACHE || []).find(p => 'T:' + p.id === selId);
+                        return it ? it.nombre : selId;
+                    }
+                    const pq = PAQUETES.find(p => p.id === selId);
+                    return pq ? pq.nombre : selId;
+                })(),
                 precioTotal: price,
                 enganche: down,
                 montoPagado: down, // El enganche inicial se asienta como el primer cobro de caja
