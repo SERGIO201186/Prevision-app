@@ -1790,9 +1790,9 @@ self.addEventListener('message', function(event) {
             window.location.reload();
         }
 
-        // URL del backend COMPARTIDO entre ODS y Previsiones (mismo PIN/usuario en ambas apps).
-        // Esta es independiente de la URL de sincronización de contratos/previsiones.
-        const APP_AUTH_URL = 'https://script.google.com/macros/s/AKfycbyaM1b3L0ZhcTlIaGU-Lm0h9jJfrwkVdIKkSu674_ycUOepsWF3CYEtIGgyyGlqG37FUQ/exec';
+        // URL del backend: usa la misma URL de Apps Script configurada en Sincronización.
+        // Si no está configurada, el login cae al respaldo local (localStorage).
+        function getAuthUrl() { return localStorage.getItem('huerta_google_url') || ''; }
 
         let LOGIN_PIN = '';
         function switchLoginTab(tab) {
@@ -1820,7 +1820,9 @@ self.addEventListener('message', function(event) {
 
         async function intentarAccesoCompartido(payload) {
             try {
-                const res = await fetch(APP_AUTH_URL, {
+                const authUrl = getAuthUrl();
+                if (!authUrl) return null;
+                const res = await fetch(authUrl, {
                     method: 'POST',
                     body: JSON.stringify(Object.assign({ accion: 'validarAcceso' }, payload))
                 });
@@ -1859,7 +1861,7 @@ self.addEventListener('message', function(event) {
             // 3. Respaldo: colaboradores locales con PIN propio (compatibilidad con datos previos)
             let emps = [];
             try { emps = JSON.parse(localStorage.getItem('huerta_employees')) || []; } catch (ex) { emps = []; }
-            const foundLocal = emps.find(function (emp) { return String(emp.pin || '') === pin && emp.estatus === 'Activo'; });
+            const foundLocal = emps.find(function (emp) { return (String(emp.pin || '') === pin || String(emp.contrasena || '') === pin) && emp.estatus === 'Activo'; });
             if (foundLocal) { entrarConColaborador(foundLocal); LOGIN_PIN = ''; updateLoginPinDots(); return; }
 
             document.getElementById('login-pin-status').textContent = 'PIN incorrecto';
@@ -2313,12 +2315,47 @@ function doPost(e) {
     var employeesSheet = ss.getSheetByName("EMPLEADOS");
     if (!employeesSheet) {
       employeesSheet = ss.insertSheet("EMPLEADOS");
-      employeesSheet.appendRow(["ID","NOMBRE","PUESTO","TELEFONO","ESTATUS","USUARIO","CONTRASENA"]);
+      employeesSheet.appendRow(["ID","NOMBRE","PUESTO","TELEFONO","ESTATUS","USUARIO","CONTRASENA","PIN"]);
     }
 
     // El cuerpo llega como text/plain para evitar preflight CORS
     var rawBody = e.postData ? e.postData.contents : "{}";
     var payload = JSON.parse(rawBody);
+
+    // ── VALIDAR ACCESO COMPARTIDO (login desde app de Previsiones) ──
+    if (payload.accion === 'validarAcceso') {
+      try {
+        var eSheet = ss.getSheetByName("EMPLEADOS");
+        if (!eSheet) throw new Error('Sin hoja EMPLEADOS');
+        var eRows = eSheet.getDataRange().getValues();
+        // Columnas: ID(0) NOMBRE(1) PUESTO(2) TELEFONO(3) ESTATUS(4) USUARIO(5) CONTRASENA(6) PIN(7)
+        var found = null;
+        for (var i = 1; i < eRows.length; i++) {
+          var row = eRows[i];
+          if (String(row[4] || '').toLowerCase() !== 'activo') continue;
+          if (payload.pin) {
+            var pinSheet = String(row[7] || row[6] || ''); // PIN col7, fallback a contrasena col6
+            if (pinSheet === String(payload.pin)) { found = row; break; }
+          } else if (payload.usuario && payload.contrasena) {
+            if (String(row[5]) === payload.usuario && String(row[6]) === String(payload.contrasena)) { found = row; break; }
+          }
+        }
+        if (found) {
+          return ContentService.createTextOutput(JSON.stringify({
+            ok: true,
+            colaborador: { id: String(found[0]), nombre: String(found[1]), puesto: String(found[2]),
+                           telefono: String(found[3]), estatus: String(found[4]),
+                           usuario: String(found[5]), contrasena: String(found[6]) }
+          })).setMimeType(ContentService.MimeType.JSON);
+        } else {
+          return ContentService.createTextOutput(JSON.stringify({ ok: false }))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
+      } catch(authErr) {
+        return ContentService.createTextOutput(JSON.stringify({ ok: false, error: authErr.message }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+    }
 
     // ── NOTIFICACIONES AL ADMINISTRADOR ──
     if (payload.action === 'notify' && payload.adminEmail && payload.tipo) {
@@ -2439,7 +2476,7 @@ function doPost(e) {
         if (emp.estatus === "Eliminado") {
           if (foundRow !== -1) { employeesSheet.deleteRow(foundRow); eData = employeesSheet.getDataRange().getValues(); }
         } else {
-          var rowData = [emp.id,emp.nombre,emp.puesto,emp.telefono,emp.estatus,emp.usuario,emp.contrasena||""];
+          var rowData = [emp.id,emp.nombre,emp.puesto,emp.telefono,emp.estatus,emp.usuario,emp.contrasena||"",emp.pin||""];
           if (foundRow !== -1) {
             employeesSheet.getRange(foundRow, 1, 1, rowData.length).setValues([rowData]);
           } else {
