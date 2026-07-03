@@ -1834,7 +1834,7 @@ self.addEventListener('message', function(event) {
             const sesion = {
                 id: colaborador.id || 'compartido', nombre: colaborador.nombre || 'Colaborador',
                 puesto: colaborador.puesto || '', telefono: colaborador.telefono || '',
-                usuario: userInLocal || '', estatus: 'Activo'
+                usuario: colaborador.usuario || userInLocal || '', estatus: 'Activo'
             };
             currentActiveUser = sesion;
             localStorage.setItem('huerta_session', JSON.stringify(sesion));
@@ -4625,7 +4625,14 @@ function doPost(e) {
 
         // --- CARGADORES DE INICIALIZACIÓN ---
         function isAdmin() {
-            return currentActiveUser && currentActiveUser.id === 'admin-default';
+            if (!currentActiveUser) return false;
+            const u = currentActiveUser;
+            if (u.id === 'admin-default') return true;
+            if (u.id === 'ADMIN') return true;
+            if (u.usuario === 'admin') return true;
+            const puesto = (u.puesto || '').toLowerCase();
+            if (puesto.includes('director') || puesto.includes('administrador general')) return true;
+            return false;
         }
 
         function applyRoleUI() {
