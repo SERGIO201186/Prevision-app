@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════════
-// SERVICE WORKER — Servicios Funerarios Huerta v7.2.0
+// SERVICE WORKER — Servicios Funerarios Huerta v7.3.0
 // Archivo separado requerido por GitHub Pages (no se permiten blob: URLs)
 // ═══════════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'huerta-v7-2';
+const CACHE_NAME = 'huerta-v7-3';
 
 self.addEventListener('install', function(event) {
     event.waitUntil(

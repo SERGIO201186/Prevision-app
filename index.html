@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Servicios Funerarios Huerta - Control de Previsión Total</title>
     <!-- PWA: Manifest y meta tags para instalación en dispositivos -->
-    <link rel="manifest" id="pwa-manifest-link">
+    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0f172a">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -16,122 +16,12 @@
     <script src="https://unpkg.com/lucide@0.383.0/dist/umd/lucide.min.js" defer></script>
     <script>
     // ═══════════════════════════════════════════════════════════════════
-    // PWA BOOTSTRAP — Inyectar manifest y registrar Service Worker
-    // Todo inline para funcionar como un único archivo HTML
+    // PWA BOOTSTRAP — Registrar Service Worker
+    // El manifest se sirve como archivo estático (manifest.json) para que
+    // Chrome pueda revalidarlo en instalaciones (WebAPK) y no pierda el
+    // almacenamiento local entre aperturas.
     // ═══════════════════════════════════════════════════════════════════
     (function() {
-        // 1. Crear manifest dinámicamente como Blob URL
-        const manifest = {
-            name: "Servicios Funerarios Huerta",
-            short_name: "FH Huerta",
-            description: "Control de Previsión Familiar",
-            start_url: window.location.href,
-            display: "standalone",
-            background_color: "#0f172a",
-            theme_color: "#0f172a",
-            orientation: "any",
-            icons: [
-                {
-                    src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%230f172a'/%3E%3Ctext x='96' y='130' text-anchor='middle' font-family='Georgia,serif' font-weight='900' font-size='90' fill='%23d97706'%3EFH%3C/text%3E%3C/svg%3E",
-                    sizes: "192x192",
-                    type: "image/svg+xml"
-                },
-                {
-                    src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%230f172a'/%3E%3Ctext x='256' y='360' text-anchor='middle' font-family='Georgia,serif' font-weight='900' font-size='240' fill='%23d97706'%3EFH%3C/text%3E%3C/svg%3E",
-                    sizes: "512x512",
-                    type: "image/svg+xml",
-                    purpose: "any maskable"
-                }
-            ]
-        };
-        const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
-        const manifestUrl = URL.createObjectURL(blob);
-        document.getElementById('pwa-manifest-link').href = manifestUrl;
-
-        // 2. Registrar Service Worker inline como Blob URL
-        const swCode = `
-const CACHE_NAME = 'huerta-v7';
-const URLS_TO_CACHE = [
-    self.location.href.replace(/\\/sw.*$/, '') || '/'
-];
-
-// Al instalar, guardar la página en caché
-self.addEventListener('install', function(event) {
-    event.waitUntil(
-        caches.open(CACHE_NAME).then(function(cache) {
-            return Promise.all(
-                URLS_TO_CACHE.map(url =>
-                    fetch(url).then(response => {
-                        if (response.ok) return cache.put(url, response);
-                    }).catch(() => {})
-                )
-            );
-        }).then(() => self.skipWaiting())
-    );
-});
-
-self.addEventListener('activate', function(event) {
-    event.waitUntil(
-        caches.keys().then(function(keys) {
-            return Promise.all(
-                keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
-            );
-        }).then(() => self.clients.claim())
-    );
-});
-
-// Interceptar peticiones de red
-self.addEventListener('fetch', function(event) {
-    const url = event.request.url;
-    // Para peticiones al Google Apps Script: siempre ir a la red
-    if (url.includes('script.google.com') || url.includes('googleapis.com')) {
-        event.respondWith(
-            fetch(event.request).catch(() => new Response(JSON.stringify({result:'error',message:'Sin conexión'}), {headers:{'Content-Type':'application/json'}}))
-        );
-        return;
-    }
-    // Para CDNs externos (Tailwind, Lucide): red primero, cache como fallback
-    if (url.includes('cdn.tailwindcss.com') || url.includes('unpkg.com')) {
-        event.respondWith(
-            fetch(event.request).then(response => {
-                const clone = response.clone();
-                caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
-                return response;
-            }).catch(() => caches.match(event.request))
-        );
-        return;
-    }
-    // Para la app misma: cache primero, red como fallback y actualización en background
-    event.respondWith(
-        caches.match(event.request).then(function(cached) {
-            const networkFetch = fetch(event.request).then(function(response) {
-                if (response && response.ok) {
-                    const clone = response.clone();
-                    caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
-                }
-                return response;
-            }).catch(() => null);
-            return cached || networkFetch;
-        })
-    );
-});
-
-// Escuchar mensaje para cachear la URL actual
-self.addEventListener('message', function(event) {
-    if (event.data && event.data.type === 'CACHE_PAGE') {
-        const url = event.data.url;
-        caches.open(CACHE_NAME).then(function(cache) {
-            return fetch(url).then(function(response) {
-                if (response.ok) return cache.put(url, response);
-            });
-        });
-    }
-    if (event.data && event.data.type === 'SKIP_WAITING') {
-        self.skipWaiting();
-    }
-});
-`;
-        // Registrar SW desde sw.js (archivo separado — GitHub Pages no permite blob: URLs)
         if ('serviceWorker' in navigator) {
             // Construir path correcto: /Prevision-app/sw.js para GitHub Pages
             const base = window.location.pathname.replace(/\/[^\/]*$/, '');
