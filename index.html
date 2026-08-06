@@ -14,6 +14,7 @@
     <!-- Importación de Tailwind CSS y Lucide Icons para una interfaz moderna y fluida -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@0.383.0/dist/umd/lucide.min.js" defer></script>
+    <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
     <script>
     // ═══════════════════════════════════════════════════════════════════
     // PWA BOOTSTRAP — Registrar Service Worker
@@ -191,6 +192,9 @@
             <button onclick="switchTab('clients')" id="btn-tab-clients" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition text-slate-400 hover:bg-slate-900 hover:text-slate-200">
                 <i data-lucide="file-signature" class="h-4 w-4"></i> Contratos
             </button>
+            <button onclick="switchTab('verificar')" id="btn-tab-verificar" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition text-slate-400 hover:bg-slate-900 hover:text-slate-200">
+                <i data-lucide="shield-check" class="h-4 w-4"></i> Verificar Certificado
+            </button>
             <button onclick="switchTab('payments')" id="btn-tab-payments" class="admin-only w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition text-slate-400 hover:bg-slate-900 hover:text-slate-200">
                 <i data-lucide="wallet" class="h-4 w-4"></i> Control de Pagos
             </button>
@@ -215,7 +219,7 @@
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.18.0 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.19.0 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -331,6 +335,65 @@
                     </div>
                 </div>
                 <div id="clients-list-container" class="grid grid-cols-1 gap-4"></div>
+            </section>
+
+            <!-- TAB: VERIFICAR CERTIFICADO -->
+            <section id="tab-content-verificar" class="space-y-6 hidden">
+                <div class="bg-slate-950 p-6 rounded-xl border border-slate-800 max-w-2xl">
+                    <h3 class="font-serif font-bold text-lg text-slate-200 mb-1 flex items-center gap-2">
+                        <i data-lucide="shield-check" class="text-amber-500 h-5 w-5"></i> Verificar Certificado de Liquidación
+                    </h3>
+                    <p class="text-xs text-slate-400 mb-5">Cualquier colaborador puede confirmar aquí la autenticidad de un certificado — sin necesidad de acceder a las hojas de cálculo. Pide al titular el <b>número de certificado</b> y/o el <b>folio</b> impresos en el documento, o pídele que escanee el código QR y te lea el texto.</p>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                        <div>
+                            <label class="text-[10px] text-slate-500 uppercase font-semibold block mb-1">N° de Certificado</label>
+                            <input type="text" id="verify-numcert-input" placeholder="CERT-2026-SFH2600000-A1B2C3" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 font-mono placeholder-slate-600 focus:outline-none focus:border-amber-500" onkeydown="if(event.key==='Enter') verificarCertificado()">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-slate-500 uppercase font-semibold block mb-1">Folio de Póliza</label>
+                            <input type="text" id="verify-folio-input" placeholder="SFH-26-00000" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 font-mono placeholder-slate-600 focus:outline-none focus:border-amber-500" onkeydown="if(event.key==='Enter') verificarCertificado()">
+                        </div>
+                    </div>
+                    <p class="text-[10px] text-slate-500 mb-4">Puedes verificar solo con uno de los dos datos, aunque lo ideal es tener ambos para mayor certeza.</p>
+
+                    <div class="flex flex-wrap gap-2 mb-2">
+                        <button onclick="verificarCertificado()" class="bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold px-4 py-2.5 rounded-lg text-sm flex items-center gap-2">
+                            <i data-lucide="search-check" class="h-4 w-4"></i> Verificar
+                        </button>
+                        <button onclick="toggleQrPasteBox()" class="bg-slate-900 border border-slate-700 hover:border-amber-500 text-slate-400 hover:text-amber-400 font-semibold px-4 py-2.5 rounded-lg text-sm flex items-center gap-2">
+                            <i data-lucide="qr-code" class="h-4 w-4"></i> Pegar texto del QR
+                        </button>
+                    </div>
+
+                    <div id="verify-qr-paste-box" class="hidden mt-2 mb-4">
+                        <textarea id="verify-qr-paste-input" rows="3" placeholder="Pega aquí el texto leído por el lector QR del celular…" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-amber-500"></textarea>
+                        <button onclick="parseQrPegado()" class="mt-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3 py-2 rounded-lg">Extraer datos y verificar</button>
+                    </div>
+
+                    <div id="verify-result-box" class="mt-4"></div>
+                </div>
+
+                <div class="bg-slate-950 p-6 rounded-xl border border-slate-800">
+                    <h3 class="font-serif font-bold text-sm text-slate-200 mb-1">Certificados Emitidos</h3>
+                    <p class="text-xs text-slate-400 mb-4">Historial completo de todos los certificados emitidos, de todos los contratos ya liquidados — se sincroniza entre todos los dispositivos.</p>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-300">
+                            <thead class="bg-slate-900 text-slate-400 text-xs uppercase">
+                                <tr>
+                                    <th class="p-3">Folio</th>
+                                    <th class="p-3">Titular</th>
+                                    <th class="p-3">N° Certificado</th>
+                                    <th class="p-3">Emitido</th>
+                                    <th class="p-3">Por</th>
+                                </tr>
+                            </thead>
+                            <tbody id="certificados-history-tbody" class="divide-y divide-slate-800">
+                                <!-- Inyectado por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </section>
 
             <!-- TAB: PAGOS -->
@@ -1267,7 +1330,8 @@
         (function sanitizeStorage() {
             try {
                 ['huerta_clients','huerta_payments','huerta_employees','huerta_session',
-                 'huerta_pending_clients','huerta_pending_payments','huerta_pending_employees']
+                 'huerta_pending_clients','huerta_pending_payments','huerta_pending_employees',
+                 'huerta_certificados']
                 .forEach(function(key) {
                     var val = localStorage.getItem(key);
                     if (val !== null) {
@@ -1281,6 +1345,11 @@
         // === CONFIGURACIONES GLOBALES Y VARIABLES DE CONTROL ===
         let clients = JSON.parse(localStorage.getItem('huerta_clients')) || [];
         let payments = JSON.parse(localStorage.getItem('huerta_payments')) || [];
+
+        // Histórico completo de certificados de liquidación emitidos (uno por emisión, de TODOS los contratos)
+        // Se sincroniza igual que clients/payments/employees — así cualquier empleado puede verificar
+        // un certificado desde la app sin necesitar acceso a las hojas de cálculo.
+        let certificados = JSON.parse(localStorage.getItem('huerta_certificados')) || [];
         
         // Cargar empleados de memoria o inicializar vacío
         let employees = JSON.parse(localStorage.getItem('huerta_employees')) || [];
@@ -2141,8 +2210,9 @@ function doGet(e) {
     var contractsSheet = ss.getSheetByName("CONTRATOS");
     var paymentsSheet  = ss.getSheetByName("ABONOS");
     var employeesSheet = ss.getSheetByName("EMPLEADOS");
+    var certSheet      = ss.getSheetByName("CERTIFICADOS");
 
-    var response = { result: "success", contracts: [], payments: [], employees: [] };
+    var response = { result: "success", contracts: [], payments: [], employees: [], certificados: [] };
 
     if (contractsSheet) {
       var data = contractsSheet.getDataRange().getValues();
@@ -2177,6 +2247,17 @@ function doGet(e) {
         }
       }
     }
+    if (certSheet) {
+      var data4 = certSheet.getDataRange().getValues();
+      if (data4.length > 1) {
+        var headers4 = data4[0];
+        for (var i = 1; i < data4.length; i++) {
+          var row4 = {};
+          for (var j = 0; j < headers4.length; j++) { row4[headers4[j]] = data4[i][j]; }
+          response.certificados.push(row4);
+        }
+      }
+    }
     output = ContentService.createTextOutput(JSON.stringify(response))
       .setMimeType(ContentService.MimeType.JSON);
   } catch(err) {
@@ -2206,6 +2287,11 @@ function doPost(e) {
     if (!employeesSheet) {
       employeesSheet = ss.insertSheet("EMPLEADOS");
       employeesSheet.appendRow(["ID","NOMBRE","PUESTO","TELEFONO","ESTATUS","USUARIO","CONTRASENA","PIN"]);
+    }
+    var certSheet = ss.getSheetByName("CERTIFICADOS");
+    if (!certSheet) {
+      certSheet = ss.insertSheet("CERTIFICADOS");
+      certSheet.appendRow(["NUM_CERT","FOLIO","TITULAR","PAQUETE","PRECIO_TOTAL","HASH","FECHA_EMISION","HORA_EMISION","EMITIDO_POR"]);
     }
 
     // El cuerpo llega como text/plain para evitar preflight CORS
@@ -2377,6 +2463,23 @@ function doPost(e) {
       });
     }
 
+    // ── Certificados de Liquidación (histórico completo, uno por emisión) ──
+    if (payload.certificados && payload.certificados.length > 0) {
+      var certData = certSheet.getDataRange().getValues();
+      payload.certificados.forEach(function(cert) {
+        var foundRow = -1;
+        for (var i = 1; i < certData.length; i++) {
+          if (String(certData[i][0]) === String(cert.numCert)) { foundRow = i + 1; break; }
+        }
+        if (foundRow === -1) {
+          // Los certificados son inmutables una vez emitidos: solo se agregan, nunca se sobrescriben.
+          certSheet.appendRow([cert.numCert, cert.folio, cert.titular||"", cert.paquete||"",
+            cert.precioTotal||0, cert.hash||"", cert.fechaEmision||"", cert.horaEmision||"", cert.emitidoPor||""]);
+          certData = certSheet.getDataRange().getValues();
+        }
+      });
+    }
+
     output = ContentService.createTextOutput(JSON.stringify({result:"success"}))
       .setMimeType(ContentService.MimeType.JSON);
   } catch(err) {
@@ -2411,7 +2514,8 @@ function doPost(e) {
             const packagePayload = {
                 contracts: contractsParaSheets,
                 payments: payments,
-                employees: employees
+                employees: employees,
+                certificados: certificados
             };
 
             try {
@@ -2519,10 +2623,32 @@ function doPost(e) {
                         });
                     }
 
+                    // Integrar certificados remotos (histórico completo — inmutables, solo se agregan los nuevos)
+                    if (remoteData.certificados && remoteData.certificados.length > 0) {
+                        remoteData.certificados.forEach(rc => {
+                            if (!rc.NUM_CERT) return;
+                            const exists = certificados.find(cert => cert.numCert === rc.NUM_CERT);
+                            if (!exists) {
+                                certificados.push({
+                                    numCert: rc.NUM_CERT,
+                                    folio: rc.FOLIO,
+                                    titular: rc.TITULAR,
+                                    paquete: rc.PAQUETE,
+                                    precioTotal: Number(rc.PRECIO_TOTAL) || 0,
+                                    hash: rc.HASH,
+                                    fechaEmision: typeof rc.FECHA_EMISION === 'string' ? rc.FECHA_EMISION.split('T')[0] : String(rc.FECHA_EMISION || ''),
+                                    horaEmision: rc.HORA_EMISION || '',
+                                    emitidoPor: rc.EMITIDO_POR || ''
+                                });
+                            }
+                        });
+                    }
+
                     // Guardar todo localmente
                     localStorage.setItem('huerta_clients', JSON.stringify(clients));
                     localStorage.setItem('huerta_payments', JSON.stringify(payments));
                     localStorage.setItem('huerta_employees', JSON.stringify(employees));
+                    localStorage.setItem('huerta_certificados', JSON.stringify(certificados));
 
                     const now = new Date().toLocaleString('es-MX');
                     localStorage.setItem('huerta_last_sync', now);
@@ -2533,6 +2659,7 @@ function doPost(e) {
                     updateSyncStatus();
                     renderClientsList();
                     try { renderPaymentsTab(); } catch(e) {}
+                    try { renderCertificadosHistory(); } catch(e) {}
                     try { updatePendingBadge(); } catch(e) {}
                     showToast(`✅ Sincronización completa — ${(remoteData.contracts||[]).length} contratos, ${(remoteData.payments||[]).length} abonos en la nube.`, "success");
                 } else {
@@ -2939,7 +3066,7 @@ function doPost(e) {
             const ultimoPago = contratoPayments[contratoPayments.length-1]
                 ? contratoPayments[contratoPayments.length-1].fecha : c.fechaRegistro;
 
-            // Guardar registro de certificado emitido en el cliente
+            // Guardar registro de certificado emitido en el cliente (historial local del contrato)
             const certRecord = {
                 numCert, fechaEmision: ahora.toISOString().split('T')[0],
                 horaEmision, hash, emitidoPor: currentActiveUser ? currentActiveUser.nombre : 'Sistema'
@@ -2948,6 +3075,18 @@ function doPost(e) {
             if (!clients[idx].certificados) clients[idx].certificados = [];
             clients[idx].certificados.push(certRecord);
             localStorage.setItem('huerta_clients', JSON.stringify(clients));
+
+            // Guardar también en el histórico GLOBAL de certificados (uno por cada emisión, de TODOS los
+            // contratos liquidados) — esta es la fuente que usa la pantalla "Verificar Certificado" y la
+            // que se sincroniza completa a la hoja CERTIFICADOS, así ningún certificado se pierde ni se
+            // sobrescribe con el siguiente.
+            certificados.push({
+                numCert, folio: c.folio, titular: c.nombre, paquete: c.nombrePaquete,
+                precioTotal: c.precioTotal, hash,
+                fechaEmision: ahora.toISOString().split('T')[0], horaEmision,
+                emitidoPor: currentActiveUser ? currentActiveUser.nombre : 'Sistema'
+            });
+            localStorage.setItem('huerta_certificados', JSON.stringify(certificados));
 
             // Marcar para sync y notificar admin
             if (!pendingSyncClients.includes(folio)) {
@@ -2959,25 +3098,21 @@ function doPost(e) {
                 folio, titular: c.nombre, numCert, fechaEmision, paquete: c.nombrePaquete, precioTotal: c.precioTotal
             });
 
-            // QR SVG simple (cuadrícula de datos del certificado — visual, no scannable)
-            // Usamos una representación visual del hash en forma de cuadrícula
-            const qrData = hash.substring(0,16);
-            let qrSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21" width="80" height="80">';
-            qrSvg += '<rect width="21" height="21" fill="white"/>';
-            // Patrón de esquinas fijo (finder patterns)
-            [[0,0],[14,0],[0,14]].forEach(([x,y])=>{
-                qrSvg += `<rect x="${x}" y="${y}" width="7" height="7" fill="#0f172a"/>`;
-                qrSvg += `<rect x="${x+1}" y="${y+1}" width="5" height="5" fill="white"/>`;
-                qrSvg += `<rect x="${x+2}" y="${y+2}" width="3" height="3" fill="#0f172a"/>`;
-            });
-            // Datos del hash como píxeles en la cuadrícula central
-            for(let i=0;i<qrData.length;i++){
-                const val = parseInt(qrData[i],16);
-                const row = Math.floor(i/4) + 8;
-                const col = (i%4) + 8;
-                if(val>7) qrSvg += `<rect x="${col}" y="${row}" width="1" height="1" fill="#0f172a"/>`;
+            // QR real y escaneable — codifica los datos de verificación del certificado.
+            // Cualquier celular con cámara puede leerlo y ver de inmediato el N° de certificado
+            // y el folio, sin depender de conexión a internet ni de acceso a las hojas de cálculo.
+            let qrSvg = '';
+            try {
+                const qrText = `SERVICIOS FUNERARIOS HUERTA\nCertificado de Liquidación Total\nN° Certificado: ${numCert}\nFolio: ${c.folio}\nVerificar: (228) 468 42 83`;
+                const qr = qrcode(0, 'M');
+                qr.addData(qrText);
+                qr.make();
+                qrSvg = qr.createSvgTag(4, 4)
+                    .replace(/width="\d+px?"/, 'width="100%"')
+                    .replace(/height="\d+px?"/, 'height="100%"');
+            } catch(e) {
+                qrSvg = '<div style="font-size:6pt;color:#94a3b8;">QR no disponible</div>';
             }
-            qrSvg += '</svg>';
 
             const htmlCert = `<!DOCTYPE html>
 <html lang="es">
@@ -3208,13 +3343,13 @@ function doPost(e) {
   <div class="seguridad">
     <div class="seg-title">🔐 Datos de Verificación de Autenticidad — No reproducible sin los datos originales del sistema</div>
     <div class="seg-grid">
-      <div style="text-align:center;">${qrSvg}</div>
+      <div style="width:76px;height:76px;background:#fff;padding:2px;border-radius:2px;">${qrSvg}</div>
       <div>
         <div class="hash-label">Código de verificación SHA-256 (primeros 24 dígitos):</div>
         <div class="hash-code">${hash}</div>
         <div class="hash-label" style="margin-top:6px;">Número de certificado:</div>
         <div class="hash-code">${numCert}</div>
-        <div class="hash-label" style="margin-top:6px;">Para verificar la autenticidad de este documento comuníquese al (228) 468 42 83 proporcionando el número de certificado y folio.</div>
+        <div class="hash-label" style="margin-top:6px;">Escanea el código QR o comunícate al (228) 468 42 83 proporcionando el número de certificado y folio para verificar la autenticidad de este documento.</div>
       </div>
     </div>
   </div>
@@ -3278,6 +3413,110 @@ function doPost(e) {
             iframe.src = blobUrl;
             showToast(`✅ Certificado ${numCert} generado y registrado.`, 'success');
         }
+
+        // ═══════════════════════════════════════════════════════════════
+        // VERIFICACIÓN DE CERTIFICADOS — pantalla de uso interno para
+        // cualquier empleado, sin necesidad de acceder a las hojas de cálculo
+        // ═══════════════════════════════════════════════════════════════
+
+        function toggleQrPasteBox() {
+            document.getElementById('verify-qr-paste-box').classList.toggle('hidden');
+        }
+
+        // Extrae "N° Certificado: ..." y "Folio: ..." del texto plano leído por
+        // cualquier lector de QR del celular (el QR impreso en el certificado
+        // codifica exactamente ese texto — ver printCertificado).
+        function parseQrPegado() {
+            const texto = document.getElementById('verify-qr-paste-input').value;
+            const matchCert = texto.match(/N[°º]?\s*Certificado:\s*([A-Z0-9\-]+)/i);
+            const matchFolio = texto.match(/Folio:\s*([A-Z0-9\-]+)/i);
+            if (!matchCert && !matchFolio) {
+                showToast('No se reconocieron datos de certificado en el texto pegado.', 'error');
+                return;
+            }
+            if (matchCert) document.getElementById('verify-numcert-input').value = matchCert[1].toUpperCase();
+            if (matchFolio) document.getElementById('verify-folio-input').value = matchFolio[1].toUpperCase();
+            verificarCertificado();
+        }
+
+        function verificarCertificado() {
+            const inputNum = document.getElementById('verify-numcert-input').value.trim().toUpperCase();
+            const inputFolio = document.getElementById('verify-folio-input').value.trim().toUpperCase();
+            const resultBox = document.getElementById('verify-result-box');
+
+            if (!inputNum && !inputFolio) {
+                showToast('Ingresa el número de certificado y/o el folio para verificar.', 'error');
+                return;
+            }
+
+            const coincidencias = certificados.filter(cert =>
+                (!inputNum || String(cert.numCert).toUpperCase() === inputNum) &&
+                (!inputFolio || String(cert.folio).toUpperCase() === inputFolio)
+            );
+
+            if (coincidencias.length === 0) {
+                resultBox.innerHTML = `
+                    <div class="bg-red-950/40 border border-red-700/50 rounded-xl p-5 flex items-start gap-3">
+                        <i data-lucide="x-circle" class="text-red-400 h-6 w-6 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <p class="text-red-400 font-bold text-sm">Certificado no encontrado</p>
+                            <p class="text-xs text-slate-400 mt-1">No existe ningún certificado registrado con esos datos. Verifica que el número de certificado y el folio estén escritos exactamente como aparecen en el documento, o revisa que este dispositivo esté sincronizado (pestaña Sincronización Nube).</p>
+                        </div>
+                    </div>`;
+                safeCreateIcons();
+                return;
+            }
+
+            resultBox.innerHTML = coincidencias.map(cert => {
+                const cliente = clients.find(cl => cl.folio === cert.folio);
+                const estadoContrato = cliente ? getContractStatus(cliente) : null;
+                return `
+                <div class="bg-emerald-950/30 border border-emerald-700/50 rounded-xl p-5">
+                    <div class="flex items-start gap-3 mb-4">
+                        <i data-lucide="badge-check" class="text-emerald-400 h-6 w-6 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <p class="text-emerald-400 font-bold text-sm">Certificado válido y auténtico</p>
+                            <p class="text-xs text-slate-400 mt-1">Este certificado fue emitido por el sistema de Servicios Funerarios Huerta y corresponde a un contrato 100% liquidado.</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-xs border-t border-emerald-800/40 pt-4">
+                        <div><span class="text-slate-500">Titular:</span> <span class="text-slate-200 font-semibold">${cert.titular || '—'}</span></div>
+                        <div><span class="text-slate-500">Folio de póliza:</span> <span class="text-amber-400 font-mono font-bold">${cert.folio}</span></div>
+                        <div><span class="text-slate-500">N° de certificado:</span> <span class="text-slate-200 font-mono">${cert.numCert}</span></div>
+                        <div><span class="text-slate-500">Plan / Paquete:</span> <span class="text-slate-200">${cert.paquete || '—'}</span></div>
+                        <div><span class="text-slate-500">Importe total liquidado:</span> <span class="text-emerald-400 font-bold">$${(Number(cert.precioTotal)||0).toLocaleString()} M.N.</span></div>
+                        <div><span class="text-slate-500">Emitido el:</span> <span class="text-slate-200">${cert.fechaEmision}${cert.horaEmision ? ' · ' + cert.horaEmision + ' hrs.' : ''}</span></div>
+                        <div><span class="text-slate-500">Emitido por:</span> <span class="text-slate-200">${cert.emitidoPor || '—'}</span></div>
+                        ${estadoContrato ? `<div><span class="text-slate-500">Estado actual del contrato:</span> <span class="text-slate-200 capitalize">${estadoContrato}</span></div>` : ''}
+                    </div>
+                </div>`;
+            }).join('<div class="h-2"></div>');
+            safeCreateIcons();
+        }
+
+        function renderCertificadosHistory() {
+            const tbody = document.getElementById('certificados-history-tbody');
+            if (!tbody) return;
+            const ordenados = [...certificados].sort((a, b) => {
+                const fa = `${a.fechaEmision || ''} ${a.horaEmision || ''}`;
+                const fb = `${b.fechaEmision || ''} ${b.horaEmision || ''}`;
+                return fb.localeCompare(fa);
+            });
+            if (ordenados.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500 text-xs">Aún no se ha emitido ningún certificado.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = ordenados.map(cert => `
+                <tr>
+                    <td class="p-3 font-mono text-amber-500 text-xs">${cert.folio}</td>
+                    <td class="p-3">${cert.titular || '—'}</td>
+                    <td class="p-3 font-mono text-xs">${cert.numCert}</td>
+                    <td class="p-3 text-xs">${cert.fechaEmision}${cert.horaEmision ? ' · ' + cert.horaEmision : ''}</td>
+                    <td class="p-3 text-xs">${cert.emitidoPor || '—'}</td>
+                </tr>
+            `).join('');
+        }
+
         function exportFirmas() {
             const firmados = clients.filter(c => c.firmaBase64);
             if (firmados.length === 0) {
@@ -3353,8 +3592,10 @@ function doPost(e) {
                 localStorage.removeItem('huerta_payments');
                 localStorage.removeItem('huerta_pending_clients');
                 localStorage.removeItem('huerta_pending_payments');
+                localStorage.removeItem('huerta_certificados');
                 clients = [];
                 payments = [];
+                certificados = [];
                 pendingSyncClients = [];
                 pendingSyncPayments = [];
                 showToast('✅ Contratos y pagos locales eliminados. Sincroniza para volver a descargarlos.', 'success');
@@ -3366,6 +3607,7 @@ function doPost(e) {
                 clients = [];
                 payments = [];
                 employees = [];
+                certificados = [];
                 pendingSyncClients = [];
                 pendingSyncPayments = [];
                 pendingSyncEmployees = [];
@@ -4487,6 +4729,7 @@ function doPost(e) {
             // Ocultar todas las secciones
             document.getElementById('tab-content-dashboard').classList.add('hidden');
             document.getElementById('tab-content-clients').classList.add('hidden');
+            document.getElementById('tab-content-verificar').classList.add('hidden');
             document.getElementById('tab-content-payments').classList.add('hidden');
             document.getElementById('tab-content-employees').classList.add('hidden');
             document.getElementById('tab-content-sync').classList.add('hidden');
@@ -4512,6 +4755,7 @@ function doPost(e) {
             const desc = document.getElementById('page-desc');
             if (tabId === 'dashboard') { title.innerText = "Panel de Resumen"; desc.innerText = "Visualiza folios generados, firmas pendientes y balances financieros."; }
             if (tabId === 'clients') { title.innerText = "Contratos y Clientes"; desc.innerText = "Administración, firmas caligráficas avanzadas, recibos de WhatsApp e impresión Oficio."; renderClientsList(); }
+            if (tabId === 'verificar') { title.innerText = "Verificar Certificado"; desc.innerText = "Confirma la autenticidad de un certificado de liquidación total sin acceder a las hojas de cálculo."; renderCertificadosHistory(); }
             if (tabId === 'payments') { title.innerText = "Caja y Abonos"; desc.innerText = "Historial general de caja, cobro ordinario de cuotas de previsión."; renderPaymentsTab(); }
             if (tabId === 'employees') { title.innerText = "Control de Colaboradores"; desc.innerText = "Asigna usuario y contraseña a tus asesores de ventas."; renderEmployees(); }
             if (tabId === 'sync') { 
