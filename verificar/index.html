@@ -47,16 +47,20 @@
                 </button>
             </div>
 
-            <!-- Panel de configuración (URL del Apps Script) -->
+            <!-- Panel de configuración (URL del Apps Script + nombre del equipo) -->
             <div id="config-panel" class="hidden bg-slate-950 border border-slate-800 rounded-xl p-5 mb-5">
                 <h2 class="text-sm font-bold text-slate-200 mb-1 flex items-center gap-2"><i data-lucide="link" class="h-4 w-4 text-amber-500"></i> Conexión a la nube</h2>
-                <p class="text-xs text-slate-400 mb-3">Pega aquí la misma URL de Apps Script que usa la app principal (pestaña Sincronización Nube → Copiar/Pegar URL). Solo hay que configurarla una vez por equipo.</p>
-                <div class="flex flex-col sm:flex-row gap-2">
-                    <input type="text" id="cfg-url-input" placeholder="https://script.google.com/macros/s/..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 font-mono placeholder-slate-600 focus:outline-none focus:border-amber-500">
-                    <button onclick="guardarConfig()" class="bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold px-4 py-2.5 rounded-lg text-sm">Guardar</button>
+                <p class="text-xs text-slate-400 mb-3">Pega aquí la misma URL de Apps Script que usa la app principal (pestaña Sincronización Nube → Copiar/Pegar URL). Después de guardar, este equipo queda <b>pendiente de autorización</b> — el administrador debe aprobarlo desde la app principal antes de que pueda verificar nada. Solo hay que configurarlo una vez por equipo.</p>
+                <div class="space-y-2">
+                    <input type="text" id="cfg-url-input" placeholder="https://script.google.com/macros/s/..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 font-mono placeholder-slate-600 focus:outline-none focus:border-amber-500">
+                    <input type="text" id="cfg-nombre-input" placeholder="Nombre de este equipo (ej. Recepción, Mostrador 2)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-amber-500">
+                    <button onclick="guardarConfig()" class="w-full bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold px-4 py-2.5 rounded-lg text-sm">Guardar y solicitar acceso</button>
                 </div>
                 <p id="config-status" class="text-[11px] text-slate-500 mt-2"></p>
             </div>
+
+            <!-- Estado de autorización del equipo (se muestra cuando aún no está autorizado) -->
+            <div id="auth-status-banner" class="hidden mb-5 rounded-xl p-4 border text-xs"></div>
 
             <!-- Tarjeta de búsqueda -->
             <div class="bg-slate-950 border border-slate-800 rounded-xl p-6 mb-5">
@@ -112,12 +116,26 @@
     </div>
 
     <script>
-        // === CONFIGURACIÓN Y CACHÉ LOCAL ===
+        // === CONFIGURACIÓN, IDENTIDAD DEL EQUIPO Y CACHÉ LOCAL ===
         // huerta_verificar_url: URL propia de esta página (config por equipo).
         // Si el mismo navegador ya abrió la app principal en este dominio, se
         // reutiliza huerta_google_url como valor por defecto (localStorage es
         // por origen, no por página, así que ya está disponible aquí).
         let verifyUrl = localStorage.getItem('huerta_verificar_url') || localStorage.getItem('huerta_google_url') || '';
+
+        // deviceId: identifica a ESTE equipo/instalación de forma permanente. El servidor
+        // solo entrega certificados cuando el administrador autoriza este deviceId desde la
+        // app principal — así "instalar" la página en un equipo no basta para poder usarla,
+        // solo los equipos que el dueño del negocio autorice explícitamente pueden verificar.
+        let deviceId = localStorage.getItem('huerta_verificar_device_id') || '';
+        if (!deviceId) {
+            deviceId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+                : 'dev-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+            localStorage.setItem('huerta_verificar_device_id', deviceId);
+        }
+        let deviceNombre = localStorage.getItem('huerta_verificar_device_nombre') || '';
+        let deviceEstado = localStorage.getItem('huerta_verificar_device_estado') || '';
+
         let certCache = [];
         try { certCache = JSON.parse(localStorage.getItem('huerta_verificar_cache')) || []; } catch(e) { certCache = []; }
         let certCacheTime = localStorage.getItem('huerta_verificar_cache_time') || '';
@@ -136,10 +154,20 @@
             setTimeout(() => el.remove(), 4000);
         }
 
+        function showConfig() {
+            document.getElementById('config-panel').classList.remove('hidden');
+            const input = document.getElementById('cfg-url-input');
+            if (input && !input.value) input.value = verifyUrl;
+            const nombreInput = document.getElementById('cfg-nombre-input');
+            if (nombreInput && !nombreInput.value) nombreInput.value = deviceNombre;
+        }
+
         function toggleConfig() {
             document.getElementById('config-panel').classList.toggle('hidden');
             const input = document.getElementById('cfg-url-input');
             if (input && !input.value) input.value = verifyUrl;
+            const nombreInput = document.getElementById('cfg-nombre-input');
+            if (nombreInput && !nombreInput.value) nombreInput.value = deviceNombre;
         }
 
         function updateConfigStatus() {
@@ -148,14 +176,53 @@
             el.innerText = verifyUrl ? '✅ Conexión configurada en este equipo.' : '⚠ Aún no se ha configurado ninguna URL.';
         }
 
-        function guardarConfig() {
+        function updateAuthBanner() {
+            const el = document.getElementById('auth-status-banner');
+            if (!el) return;
+            if (!verifyUrl || deviceEstado === 'autorizado') { el.classList.add('hidden'); return; }
+            el.classList.remove('hidden');
+            if (deviceEstado === 'revocado') {
+                el.className = 'mb-5 rounded-xl p-4 border text-xs bg-red-950/40 border-red-700/50 text-red-300';
+                el.innerHTML = '<b>Acceso revocado.</b> El administrador desactivó el acceso de este equipo. Contacta al dueño del negocio si necesitas volver a usarlo aquí.';
+            } else {
+                el.className = 'mb-5 rounded-xl p-4 border text-xs bg-amber-950/30 border-amber-700/50 text-amber-300';
+                el.innerHTML = '<b>Pendiente de autorización.</b> Este equipo ya solicitó acceso — pide al administrador que lo autorice desde la app principal (pestaña Sincronización Nube → Equipos Autorizados) para poder empezar a verificar aquí.';
+            }
+        }
+
+        async function guardarConfig() {
             const val = document.getElementById('cfg-url-input').value.trim();
+            const nombre = document.getElementById('cfg-nombre-input').value.trim();
             if (!val) { showToast('Ingresa la URL del Apps Script.', 'error'); return; }
             localStorage.setItem('huerta_verificar_url', val);
             verifyUrl = val;
+            deviceNombre = nombre;
+            localStorage.setItem('huerta_verificar_device_nombre', nombre);
             updateConfigStatus();
             document.getElementById('config-panel').classList.add('hidden');
+            await solicitarAcceso();
             actualizarDatos(false);
+        }
+
+        // Registra (o consulta) el estado de autorización de este equipo. Es idempotente:
+        // si ya existía la solicitud, el servidor solo devuelve el estado actual sin duplicarla.
+        async function solicitarAcceso() {
+            if (!verifyUrl) return;
+            try {
+                const res = await fetch(verifyUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'solicitarAccesoDispositivo', deviceId: deviceId, nombre: deviceNombre })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    deviceEstado = data.estado || 'pendiente';
+                    localStorage.setItem('huerta_verificar_device_estado', deviceEstado);
+                    updateAuthBanner();
+                }
+            } catch (e) {
+                // Sin conexión — se reintentará en la próxima actualización.
+            }
         }
 
         function updateCacheStatus() {
@@ -182,17 +249,34 @@
 
         async function actualizarDatos(silencioso) {
             if (!verifyUrl) {
-                if (!silencioso) { showToast('Configura primero la conexión (⚙) antes de actualizar.', 'error'); toggleConfig(); }
+                if (!silencioso) { showToast('Configura primero la conexión (⚙) antes de actualizar.', 'error'); showConfig(); }
                 return;
             }
             const btn = document.getElementById('btn-refrescar');
             if (btn) { btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="h-3.5 w-3.5 animate-spin"></i> Actualizando…'; safeCreateIcons(); }
             try {
                 const sep = verifyUrl.includes('?') ? '&' : '?';
-                const res = await fetch(verifyUrl + sep + 'modo=verificar&v=' + Date.now());
+                const res = await fetch(verifyUrl + sep + 'modo=verificar&deviceId=' + encodeURIComponent(deviceId) + '&v=' + Date.now());
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 const data = await res.json();
                 if (data.result !== 'success') throw new Error(data.message || 'Respuesta inválida del servidor.');
+
+                deviceEstado = data.estado || 'pendiente';
+                localStorage.setItem('huerta_verificar_device_estado', deviceEstado);
+                updateAuthBanner();
+
+                if (deviceEstado !== 'autorizado') {
+                    // Sin autorización no hay datos que guardar — se limpia el caché por seguridad
+                    // (así una revocación posterior no deja certificados verificables localmente).
+                    certCache = [];
+                    certCacheTime = '';
+                    localStorage.removeItem('huerta_verificar_cache');
+                    localStorage.removeItem('huerta_verificar_cache_time');
+                    updateCacheStatus();
+                    if (!silencioso) showToast(deviceEstado === 'revocado' ? '🚫 El acceso de este equipo fue revocado.' : '⏳ Este equipo aún no ha sido autorizado.', 'error');
+                    return;
+                }
+
                 certCache = (data.certificados || []).map(function(rc) {
                     return {
                         numCert: rc.NUM_CERT,
@@ -241,6 +325,11 @@
 
             if (!inputNum && !inputFolio) {
                 showToast('Ingresa el número de certificado y/o el folio para verificar.', 'error');
+                return;
+            }
+            if (deviceEstado !== 'autorizado') {
+                showToast('Este equipo todavía no está autorizado para verificar. Pide al administrador que lo apruebe.', 'error');
+                showConfig();
                 return;
             }
             if (!certCacheTime) {
@@ -314,10 +403,11 @@
             updateConfigStatus();
             updateCacheStatus();
             updateOnlineStatus();
+            updateAuthBanner();
             if (!verifyUrl) {
-                toggleConfig();
+                showConfig();
             } else if (navigator.onLine) {
-                actualizarDatos(true); // refresco silencioso al abrir
+                actualizarDatos(true); // refresco silencioso al abrir — también revalida la autorización
             }
         });
     </script>

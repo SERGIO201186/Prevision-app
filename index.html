@@ -219,7 +219,7 @@
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.20.0 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.21.0 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -347,7 +347,7 @@
 
                     <a href="verificar/" target="_blank" class="mb-5 flex items-center gap-3 bg-emerald-950/30 border border-emerald-700/40 hover:border-emerald-500 rounded-lg p-3 text-xs transition">
                         <i data-lucide="monitor-check" class="h-5 w-5 text-emerald-400 flex-shrink-0"></i>
-                        <span class="text-slate-300"><b class="text-emerald-400">¿Necesitas verificar desde otra computadora sin iniciar sesión?</b> Existe una página aparte, instalable como app de escritorio en cualquier equipo, para que el personal que conteste el teléfono verifique sin entrar a todo el sistema.</span>
+                        <span class="text-slate-300"><b class="text-emerald-400">¿Necesitas verificar desde otra computadora sin iniciar sesión?</b> Existe una página aparte, instalable como app de escritorio en cualquier equipo, para que el personal que conteste el teléfono verifique sin entrar a todo el sistema. Solo funciona en las PC que tú autorices desde <b>Sincronización Nube → Equipos Autorizados</b>.</span>
                         <i data-lucide="external-link" class="h-4 w-4 text-emerald-500 flex-shrink-0 ml-auto"></i>
                     </a>
 
@@ -630,6 +630,35 @@
                         <button onclick="syncPendingData()" class="w-full sm:w-auto bg-emerald-700 hover:bg-emerald-800 text-white font-medium px-6 py-3 rounded-lg text-sm flex items-center justify-center gap-2">
                             <i data-lucide="refresh-cw" class="h-4 w-4"></i> Sincronizar e Integrar Todo
                         </button>
+                    </div>
+                </div>
+
+                <!-- Equipos autorizados para la página independiente de verificación -->
+                <div class="bg-slate-950 p-6 rounded-xl border border-emerald-800/30 space-y-3">
+                    <div class="flex items-start gap-3">
+                        <i data-lucide="laptop-minimal-check" class="h-5 w-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <h4 class="font-semibold text-emerald-300 text-sm">Equipos Autorizados — Página de Verificación</h4>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">La página independiente <code class="text-amber-500">/verificar/</code> no entrega ningún dato hasta que autorizas su equipo aquí. Cuando alguien la configure por primera vez en una PC, aparecerá abajo como "Pendiente" — apruébala para que empiece a funcionar ahí, o revócala cuando quieras para dejarla sin acceso.</p>
+                        </div>
+                    </div>
+                    <button onclick="cargarDispositivos()" class="text-xs text-slate-400 hover:text-amber-400 border border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                        <i data-lucide="refresh-cw" class="h-3 w-3"></i> Actualizar lista de equipos
+                    </button>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-300">
+                            <thead class="bg-slate-900 text-slate-400 text-xs uppercase">
+                                <tr>
+                                    <th class="p-3">Equipo</th>
+                                    <th class="p-3">Solicitado</th>
+                                    <th class="p-3">Estado</th>
+                                    <th class="p-3 text-center">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dispositivos-tbody" class="divide-y divide-slate-800">
+                                <tr><td colspan="4" class="p-4 text-center text-slate-500 text-xs">Presiona "Actualizar lista" para cargar los equipos.</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -1356,7 +1385,12 @@
         // Se sincroniza igual que clients/payments/employees — así cualquier empleado puede verificar
         // un certificado desde la app sin necesitar acceso a las hojas de cálculo.
         let certificados = JSON.parse(localStorage.getItem('huerta_certificados')) || [];
-        
+
+        // Equipos que han solicitado acceso a la página independiente /verificar/ — el
+        // admin los autoriza o revoca desde la pestaña Sincronización Nube. No se persiste
+        // localmente porque es información de control, siempre se consulta fresca.
+        let dispositivos = [];
+
         // Cargar empleados de memoria o inicializar vacío
         let employees = JSON.parse(localStorage.getItem('huerta_employees')) || [];
         
@@ -2214,16 +2248,27 @@ function doGet(e) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var certSheet = ss.getSheetByName("CERTIFICADOS");
+    var dispositivosSheet = ss.getSheetByName("DISPOSITIVOS");
 
-    // ── MODO VERIFICACIÓN (público, de solo lectura) ──
-    // Usado por la página independiente verificar.html, instalable por separado del
-    // sistema principal, para que cualquier persona del personal pueda confirmar un
-    // certificado sin iniciar sesión. Devuelve ÚNICAMENTE el histórico de certificados
-    // — nunca contratos, abonos ni empleados (esas hojas sí incluyen datos sensibles
-    // como teléfonos, identificaciones y contraseñas).
+    // ── MODO VERIFICACIÓN (página independiente /verificar/, SOLO equipos autorizados) ──
+    // Cada equipo que abre /verificar/ genera su propio deviceId y pide acceso una vez
+    // (acción solicitarAccesoDispositivo en doPost, queda en estado "pendiente"). Mientras
+    // el administrador no lo autorice manualmente desde la app principal, esta llamada NO
+    // entrega ningún dato — así solo las PC que el dueño del negocio autorice pueden
+    // verificar. Y aun autorizado, solo se entrega el histórico de certificados, nunca
+    // contratos/abonos/empleados (esas hojas sí tienen teléfonos, identificaciones y
+    // contraseñas).
     if (e && e.parameter && e.parameter.modo === 'verificar') {
-      var verifyResponse = { result: "success", certificados: [] };
-      if (certSheet) {
+      var deviceId = e.parameter.deviceId || "";
+      var estadoDispositivo = "no_registrado";
+      if (dispositivosSheet && deviceId) {
+        var dvRows = dispositivosSheet.getDataRange().getValues();
+        for (var dvi = 1; dvi < dvRows.length; dvi++) {
+          if (String(dvRows[dvi][0]) === String(deviceId)) { estadoDispositivo = String(dvRows[dvi][2] || "pendiente"); break; }
+        }
+      }
+      var verifyResponse = { result: "success", estado: estadoDispositivo, certificados: [] };
+      if (estadoDispositivo === "autorizado" && certSheet) {
         var vData = certSheet.getDataRange().getValues();
         if (vData.length > 1) {
           var vHeaders = vData[0];
@@ -2242,7 +2287,7 @@ function doGet(e) {
     var paymentsSheet  = ss.getSheetByName("ABONOS");
     var employeesSheet = ss.getSheetByName("EMPLEADOS");
 
-    var response = { result: "success", contracts: [], payments: [], employees: [], certificados: [] };
+    var response = { result: "success", contracts: [], payments: [], employees: [], certificados: [], dispositivos: [] };
 
     if (contractsSheet) {
       var data = contractsSheet.getDataRange().getValues();
@@ -2288,6 +2333,17 @@ function doGet(e) {
         }
       }
     }
+    if (dispositivosSheet) {
+      var data5 = dispositivosSheet.getDataRange().getValues();
+      if (data5.length > 1) {
+        var headers5 = data5[0];
+        for (var i = 1; i < data5.length; i++) {
+          var row5 = {};
+          for (var j = 0; j < headers5.length; j++) { row5[headers5[j]] = data5[i][j]; }
+          response.dispositivos.push(row5);
+        }
+      }
+    }
     output = ContentService.createTextOutput(JSON.stringify(response))
       .setMimeType(ContentService.MimeType.JSON);
   } catch(err) {
@@ -2323,10 +2379,64 @@ function doPost(e) {
       certSheet = ss.insertSheet("CERTIFICADOS");
       certSheet.appendRow(["NUM_CERT","FOLIO","TITULAR","PAQUETE","PRECIO_TOTAL","HASH","FECHA_EMISION","HORA_EMISION","EMITIDO_POR"]);
     }
+    var dispositivosSheet = ss.getSheetByName("DISPOSITIVOS");
+    if (!dispositivosSheet) {
+      dispositivosSheet = ss.insertSheet("DISPOSITIVOS");
+      dispositivosSheet.appendRow(["DEVICE_ID","NOMBRE","ESTADO","FECHA_SOLICITUD","FECHA_RESPUESTA"]);
+    }
 
     // El cuerpo llega como text/plain para evitar preflight CORS
     var rawBody = e.postData ? e.postData.contents : "{}";
     var payload = JSON.parse(rawBody);
+
+    // ── SOLICITUD DE ACCESO DE UN EQUIPO A LA PÁGINA INDEPENDIENTE DE VERIFICACIÓN ──
+    // La página /verificar/ nunca recibe datos hasta que el administrador autoriza su
+    // deviceId desde la app principal (pestaña Sincronización Nube). Esta llamada solo
+    // registra la solicitud (o consulta el estado si ya existe) — nunca autoriza sola.
+    if (payload.accion === 'solicitarAccesoDispositivo' && payload.deviceId) {
+      try {
+        var dRows = dispositivosSheet.getDataRange().getValues();
+        var dFound = -1;
+        for (var di = 1; di < dRows.length; di++) {
+          if (String(dRows[di][0]) === String(payload.deviceId)) { dFound = di + 1; break; }
+        }
+        var estadoActual;
+        if (dFound === -1) {
+          dispositivosSheet.appendRow([payload.deviceId, payload.nombre || "", "pendiente", new Date().toLocaleString('es-MX'), ""]);
+          estadoActual = "pendiente";
+        } else {
+          estadoActual = String(dRows[dFound - 1][2] || "pendiente");
+          if (payload.nombre && payload.nombre !== dRows[dFound - 1][1]) {
+            dispositivosSheet.getRange(dFound, 2).setValue(payload.nombre);
+          }
+        }
+        return ContentService.createTextOutput(JSON.stringify({ ok: true, estado: estadoActual }))
+          .setMimeType(ContentService.MimeType.JSON);
+      } catch (dErr) {
+        return ContentService.createTextOutput(JSON.stringify({ ok: false, error: dErr.message }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+    // ── ADMIN: AUTORIZAR / REVOCAR UN DISPOSITIVO (desde la app principal) ──
+    if (payload.accion === 'actualizarDispositivo' && payload.deviceId && payload.estado) {
+      try {
+        var d2Rows = dispositivosSheet.getDataRange().getValues();
+        var d2Found = -1;
+        for (var d2i = 1; d2i < d2Rows.length; d2i++) {
+          if (String(d2Rows[d2i][0]) === String(payload.deviceId)) { d2Found = d2i + 1; break; }
+        }
+        if (d2Found !== -1) {
+          dispositivosSheet.getRange(d2Found, 3).setValue(payload.estado);
+          dispositivosSheet.getRange(d2Found, 5).setValue(new Date().toLocaleString('es-MX'));
+        }
+        return ContentService.createTextOutput(JSON.stringify({ ok: true }))
+          .setMimeType(ContentService.MimeType.JSON);
+      } catch (d2Err) {
+        return ContentService.createTextOutput(JSON.stringify({ ok: false, error: d2Err.message }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+    }
 
     // ── VALIDAR ACCESO COMPARTIDO (login desde app de Previsiones) ──
     if (payload.accion === 'validarAcceso') {
@@ -3576,6 +3686,69 @@ function doPost(e) {
                     <td class="p-3 text-xs">${cert.emitidoPor || '—'}</td>
                 </tr>
             `).join('');
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // EQUIPOS AUTORIZADOS PARA /verificar/ — autorizar/revocar acceso
+        // ═══════════════════════════════════════════════════════════════
+
+        async function cargarDispositivos() {
+            if (!googleScriptUrl) { showToast('Configura primero la URL de Google Apps Script.', 'error'); return; }
+            try {
+                const res = await fetch(googleScriptUrl + '?v=' + Date.now());
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                if (data.result !== 'success') throw new Error(data.message || 'El script reportó un error.');
+                dispositivos = (data.dispositivos || []).map(d => ({
+                    deviceId: d.DEVICE_ID, nombre: d.NOMBRE, estado: d.ESTADO || 'pendiente',
+                    fechaSolicitud: d.FECHA_SOLICITUD, fechaRespuesta: d.FECHA_RESPUESTA
+                }));
+                renderDispositivos();
+            } catch (e) {
+                showToast('No se pudo cargar la lista de equipos: ' + e.message, 'error');
+            }
+        }
+
+        function renderDispositivos() {
+            const tbody = document.getElementById('dispositivos-tbody');
+            if (!tbody) return;
+            if (dispositivos.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-slate-500 text-xs">Ningún equipo ha solicitado acceso todavía.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = dispositivos.map(d => {
+                const badge = d.estado === 'autorizado'
+                    ? '<span class="text-emerald-400 font-semibold text-xs">✓ Autorizado</span>'
+                    : d.estado === 'revocado'
+                        ? '<span class="text-red-400 font-semibold text-xs">✕ Revocado</span>'
+                        : '<span class="text-amber-400 font-semibold text-xs">⏳ Pendiente</span>';
+                const boton = d.estado === 'autorizado'
+                    ? `<button onclick="actualizarEstadoDispositivo('${d.deviceId}','revocado')" class="text-red-400 hover:text-red-300 text-xs font-semibold border border-red-900/50 px-3 py-1.5 rounded-lg">Revocar</button>`
+                    : `<button onclick="actualizarEstadoDispositivo('${d.deviceId}','autorizado')" class="text-emerald-400 hover:text-emerald-300 text-xs font-semibold border border-emerald-700/50 px-3 py-1.5 rounded-lg">Autorizar</button>`;
+                return `<tr>
+                    <td class="p-3">${d.nombre || '(sin nombre)'}<span class="block text-[9px] text-slate-600 font-mono">${d.deviceId}</span></td>
+                    <td class="p-3 text-xs">${d.fechaSolicitud || '—'}</td>
+                    <td class="p-3">${badge}</td>
+                    <td class="p-3 text-center">${boton}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        async function actualizarEstadoDispositivo(deviceId, nuevoEstado) {
+            if (!googleScriptUrl) return;
+            try {
+                const res = await fetch(googleScriptUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'actualizarDispositivo', deviceId: deviceId, estado: nuevoEstado })
+                });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || 'Error desconocido');
+                showToast(nuevoEstado === 'autorizado' ? '✅ Equipo autorizado — ya puede verificar certificados.' : '🚫 Acceso revocado.', 'success');
+                cargarDispositivos();
+            } catch (e) {
+                showToast('No se pudo actualizar el equipo: ' + e.message, 'error');
+            }
         }
 
         function exportFirmas() {
