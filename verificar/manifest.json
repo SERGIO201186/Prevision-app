@@ -1,0 +1,25 @@
+{
+    "id": "./index.html",
+    "name": "Verificar Certificado - Huerta",
+    "short_name": "Verificar Huerta",
+    "description": "Verifica la autenticidad de certificados de liquidación total de Servicios Funerarios Huerta",
+    "start_url": "./index.html",
+    "scope": "./",
+    "display": "standalone",
+    "background_color": "#0f172a",
+    "theme_color": "#0f172a",
+    "orientation": "any",
+    "icons": [
+        {
+            "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%230f172a'/%3E%3Cpath d='M96 26 L154 48 V92 C154 128 130 154 96 166 C62 154 38 128 38 92 V48 Z' fill='none' stroke='%2310b981' stroke-width='9'/%3E%3Cpath d='M68 96 L88 116 L128 74' fill='none' stroke='%2310b981' stroke-width='11' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E",
+            "sizes": "192x192",
+            "type": "image/svg+xml"
+        },
+        {
+            "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%230f172a'/%3E%3Cpath d='M256 68 L410 128 V244 C410 341 346 410 256 442 C166 410 102 341 102 244 V128 Z' fill='none' stroke='%2310b981' stroke-width='24'/%3E%3Cpath d='M181 256 L234 309 L341 197' fill='none' stroke='%2310b981' stroke-width='30' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E",
+            "sizes": "512x512",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}

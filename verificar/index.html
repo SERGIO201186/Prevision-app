@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificar Certificado · Servicios Funerarios Huerta</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Verificar Huerta">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@0.383.0/dist/umd/lucide.min.js" defer></script>
+    <script>
+    (function() {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(function(reg) {
+                    if (navigator.serviceWorker.controller) {
+                        navigator.serviceWorker.controller.postMessage({ type: 'CACHE_PAGE', url: window.location.href });
+                    }
+                })
+                .catch(function(err) { console.warn('[PWA] SW no disponible:', err.message); });
+        }
+    })();
+    </script>
+    <style>.no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}</style>
+</head>
+<body class="h-full text-slate-100 font-sans">
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <div class="min-h-full flex items-start sm:items-center justify-center p-4 py-8">
+        <div class="w-full max-w-xl">
+
+            <!-- Encabezado -->
+            <div class="flex items-center gap-3 mb-6">
+                <div class="bg-emerald-500/10 p-3 rounded-full border border-emerald-500/30">
+                    <i data-lucide="shield-check" class="h-6 w-6 text-emerald-400"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-serif font-bold text-slate-100">Verificar Certificado</h1>
+                    <p class="text-xs text-slate-400">Servicios Funerarios Huerta · Página independiente, sin necesidad de iniciar sesión</p>
+                </div>
+                <button type="button" onclick="toggleConfig()" class="ml-auto text-slate-500 hover:text-amber-400 p-2" title="Configuración">
+                    <i data-lucide="settings" class="h-5 w-5"></i>
+                </button>
+            </div>
+
+            <!-- Panel de configuración (URL del Apps Script + nombre del equipo) -->
+            <div id="config-panel" class="hidden bg-slate-950 border border-slate-800 rounded-xl p-5 mb-5">
+                <h2 class="text-sm font-bold text-slate-200 mb-1 flex items-center gap-2"><i data-lucide="link" class="h-4 w-4 text-amber-500"></i> Conexión a la nube</h2>
+                <p class="text-xs text-slate-400 mb-3">Pega aquí la misma URL de Apps Script que usa la app principal (pestaña Sincronización Nube → Copiar/Pegar URL). Después de guardar, este equipo queda <b>pendiente de autorización</b> — el administrador debe aprobarlo desde la app principal antes de que pueda verificar nada. Solo hay que configurarlo una vez por equipo.</p>
+                <div class="space-y-2">
+                    <input type="text" id="cfg-url-input" placeholder="https://script.google.com/macros/s/..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 font-mono placeholder-slate-600 focus:outline-none focus:border-amber-500">
+                    <input type="text" id="cfg-nombre-input" placeholder="Nombre de este equipo (ej. Recepción, Mostrador 2)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-amber-500">
+                    <button onclick="guardarConfig()" class="w-full bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold px-4 py-2.5 rounded-lg text-sm">Guardar y solicitar acceso</button>
+                </div>
+                <p id="config-status" class="text-[11px] text-slate-500 mt-2"></p>
+            </div>
+
+            <!-- Estado de autorización del equipo (se muestra cuando aún no está autorizado) -->
+            <div id="auth-status-banner" class="hidden mb-5 rounded-xl p-4 border text-xs"></div>
+
+            <!-- Tarjeta de búsqueda -->
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-6 mb-5">
+                <p class="text-xs text-slate-400 mb-4">Pide al titular el <b>número de certificado</b> y/o el <b>folio</b> impresos en el documento, o pídele que escanee el código QR y te lea el texto.</p>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label class="text-[10px] text-slate-500 uppercase font-semibold block mb-1">N° de Certificado</label>
+                        <input type="text" id="verify-numcert-input" placeholder="CERT-2026-SFH2600000-A1B2C3" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 font-mono placeholder-slate-600 focus:outline-none focus:border-amber-500" onkeydown="if(event.key==='Enter') verificar()">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-slate-500 uppercase font-semibold block mb-1">Folio de Póliza</label>
+                        <input type="text" id="verify-folio-input" placeholder="SFH-26-00000" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 font-mono placeholder-slate-600 focus:outline-none focus:border-amber-500" onkeydown="if(event.key==='Enter') verificar()">
+                    </div>
+                </div>
+                <p class="text-[10px] text-slate-500 mb-4">Puedes verificar solo con uno de los dos datos, aunque lo ideal es tener ambos para mayor certeza.</p>
+
+                <div class="flex flex-wrap gap-2 mb-2">
+                    <button onclick="verificar()" class="bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold px-4 py-2.5 rounded-lg text-sm flex items-center gap-2">
+                        <i data-lucide="search-check" class="h-4 w-4"></i> Verificar
+                    </button>
+                    <button onclick="toggleQrPasteBox()" class="bg-slate-900 border border-slate-700 hover:border-amber-500 text-slate-400 hover:text-amber-400 font-semibold px-4 py-2.5 rounded-lg text-sm flex items-center gap-2">
+                        <i data-lucide="qr-code" class="h-4 w-4"></i> Pegar texto del QR
+                    </button>
+                </div>
+
+                <div id="verify-qr-paste-box" class="hidden mt-2 mb-2">
+                    <textarea id="verify-qr-paste-input" rows="3" placeholder="Pega aquí el texto leído por el lector QR del celular…" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-amber-500"></textarea>
+                    <button onclick="parseQrPegado()" class="mt-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3 py-2 rounded-lg">Extraer datos y verificar</button>
+                </div>
+
+                <div id="verify-result-box" class="mt-4"></div>
+            </div>
+
+            <!-- Estado de los datos / pie -->
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+                <div>
+                    <p id="cache-status" class="text-[11px] text-slate-500">Sin datos aún — configura la conexión (⚙) para comenzar.</p>
+                    <p id="online-status" class="text-[11px] mt-0.5"></p>
+                </div>
+                <div class="flex gap-2">
+                    <button id="btn-install-verificar" onclick="triggerInstall()" class="hidden bg-emerald-800/40 border border-emerald-600/50 text-emerald-400 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5">
+                        <i data-lucide="download" class="h-3.5 w-3.5"></i> Instalar en este equipo
+                    </button>
+                    <button id="btn-refrescar" onclick="actualizarDatos(false)" class="bg-slate-900 border border-slate-700 hover:border-amber-500 text-slate-300 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5">
+                        <i data-lucide="refresh-cw" class="h-3.5 w-3.5"></i> Actualizar datos
+                    </button>
+                </div>
+            </div>
+
+            <p class="text-center text-[10px] text-slate-600 mt-5">Uso interno del personal · Servicios Funerarios Huerta · (228) 468 42 83</p>
+        </div>
+    </div>
+
+    <script>
+        // === CONFIGURACIÓN, IDENTIDAD DEL EQUIPO Y CACHÉ LOCAL ===
+        // huerta_verificar_url: URL propia de esta página (config por equipo).
+        // Si el mismo navegador ya abrió la app principal en este dominio, se
+        // reutiliza huerta_google_url como valor por defecto (localStorage es
+        // por origen, no por página, así que ya está disponible aquí).
+        let verifyUrl = localStorage.getItem('huerta_verificar_url') || localStorage.getItem('huerta_google_url') || '';
+
+        // deviceId: identifica a ESTE equipo/instalación de forma permanente. El servidor
+        // solo entrega certificados cuando el administrador autoriza este deviceId desde la
+        // app principal — así "instalar" la página en un equipo no basta para poder usarla,
+        // solo los equipos que el dueño del negocio autorice explícitamente pueden verificar.
+        let deviceId = localStorage.getItem('huerta_verificar_device_id') || '';
+        if (!deviceId) {
+            deviceId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+                : 'dev-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+            localStorage.setItem('huerta_verificar_device_id', deviceId);
+        }
+        let deviceNombre = localStorage.getItem('huerta_verificar_device_nombre') || '';
+        let deviceEstado = localStorage.getItem('huerta_verificar_device_estado') || '';
+
+        let certCache = [];
+        try { certCache = JSON.parse(localStorage.getItem('huerta_verificar_cache')) || []; } catch(e) { certCache = []; }
+        let certCacheTime = localStorage.getItem('huerta_verificar_cache_time') || '';
+
+        function safeCreateIcons() {
+            try { if (window.lucide) lucide.createIcons(); } catch(e) {}
+        }
+
+        function showToast(msg, type) {
+            const container = document.getElementById('toast-container');
+            const el = document.createElement('div');
+            const color = type === 'error' ? 'bg-red-700' : 'bg-emerald-700';
+            el.className = `${color} text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-lg pointer-events-auto`;
+            el.innerText = msg;
+            container.appendChild(el);
+            setTimeout(() => el.remove(), 4000);
+        }
+
+        function showConfig() {
+            document.getElementById('config-panel').classList.remove('hidden');
+            const input = document.getElementById('cfg-url-input');
+            if (input && !input.value) input.value = verifyUrl;
+            const nombreInput = document.getElementById('cfg-nombre-input');
+            if (nombreInput && !nombreInput.value) nombreInput.value = deviceNombre;
+        }
+
+        function toggleConfig() {
+            document.getElementById('config-panel').classList.toggle('hidden');
+            const input = document.getElementById('cfg-url-input');
+            if (input && !input.value) input.value = verifyUrl;
+            const nombreInput = document.getElementById('cfg-nombre-input');
+            if (nombreInput && !nombreInput.value) nombreInput.value = deviceNombre;
+        }
+
+        function updateConfigStatus() {
+            const el = document.getElementById('config-status');
+            if (!el) return;
+            el.innerText = verifyUrl ? '✅ Conexión configurada en este equipo.' : '⚠ Aún no se ha configurado ninguna URL.';
+        }
+
+        function updateAuthBanner() {
+            const el = document.getElementById('auth-status-banner');
+            if (!el) return;
+            if (!verifyUrl || deviceEstado === 'autorizado') { el.classList.add('hidden'); return; }
+            el.classList.remove('hidden');
+            if (deviceEstado === 'revocado') {
+                el.className = 'mb-5 rounded-xl p-4 border text-xs bg-red-950/40 border-red-700/50 text-red-300';
+                el.innerHTML = '<b>Acceso revocado.</b> El administrador desactivó el acceso de este equipo. Contacta al dueño del negocio si necesitas volver a usarlo aquí.';
+            } else {
+                el.className = 'mb-5 rounded-xl p-4 border text-xs bg-amber-950/30 border-amber-700/50 text-amber-300';
+                el.innerHTML = '<b>Pendiente de autorización.</b> Este equipo ya solicitó acceso — pide al administrador que lo autorice desde la app principal (pestaña Sincronización Nube → Equipos Autorizados) para poder empezar a verificar aquí.';
+            }
+        }
+
+        async function guardarConfig() {
+            const val = document.getElementById('cfg-url-input').value.trim();
+            const nombre = document.getElementById('cfg-nombre-input').value.trim();
+            if (!val) { showToast('Ingresa la URL del Apps Script.', 'error'); return; }
+            localStorage.setItem('huerta_verificar_url', val);
+            verifyUrl = val;
+            deviceNombre = nombre;
+            localStorage.setItem('huerta_verificar_device_nombre', nombre);
+            updateConfigStatus();
+            document.getElementById('config-panel').classList.add('hidden');
+            await solicitarAcceso();
+            actualizarDatos(false);
+        }
+
+        // Registra (o consulta) el estado de autorización de este equipo. Es idempotente:
+        // si ya existía la solicitud, el servidor solo devuelve el estado actual sin duplicarla.
+        async function solicitarAcceso() {
+            if (!verifyUrl) return;
+            try {
+                const res = await fetch(verifyUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'solicitarAccesoDispositivo', deviceId: deviceId, nombre: deviceNombre })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    deviceEstado = data.estado || 'pendiente';
+                    localStorage.setItem('huerta_verificar_device_estado', deviceEstado);
+                    updateAuthBanner();
+                }
+            } catch (e) {
+                // Sin conexión — se reintentará en la próxima actualización.
+            }
+        }
+
+        function updateCacheStatus() {
+            const el = document.getElementById('cache-status');
+            if (!el) return;
+            if (!certCacheTime) {
+                el.innerText = verifyUrl ? 'Aún no se han descargado datos — presiona "Actualizar datos".' : 'Sin datos aún — configura la conexión (⚙) para comenzar.';
+            } else {
+                el.innerText = `Datos actualizados: ${certCacheTime} · ${certCache.length} certificado${certCache.length !== 1 ? 's' : ''} guardados en este equipo.`;
+            }
+        }
+
+        function updateOnlineStatus() {
+            const el = document.getElementById('online-status');
+            if (!el) return;
+            if (navigator.onLine) {
+                el.innerHTML = '<span class="text-emerald-500">●</span> Conectado';
+            } else {
+                el.innerHTML = '<span class="text-amber-500">●</span> Sin conexión — usando datos guardados localmente';
+            }
+        }
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+
+        async function actualizarDatos(silencioso) {
+            if (!verifyUrl) {
+                if (!silencioso) { showToast('Configura primero la conexión (⚙) antes de actualizar.', 'error'); showConfig(); }
+                return;
+            }
+            const btn = document.getElementById('btn-refrescar');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="h-3.5 w-3.5 animate-spin"></i> Actualizando…'; safeCreateIcons(); }
+            try {
+                const sep = verifyUrl.includes('?') ? '&' : '?';
+                const res = await fetch(verifyUrl + sep + 'modo=verificar&deviceId=' + encodeURIComponent(deviceId) + '&v=' + Date.now());
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                if (data.result !== 'success') throw new Error(data.message || 'Respuesta inválida del servidor.');
+
+                deviceEstado = data.estado || 'pendiente';
+                localStorage.setItem('huerta_verificar_device_estado', deviceEstado);
+                updateAuthBanner();
+
+                if (deviceEstado !== 'autorizado') {
+                    // Sin autorización no hay datos que guardar — se limpia el caché por seguridad
+                    // (así una revocación posterior no deja certificados verificables localmente).
+                    certCache = [];
+                    certCacheTime = '';
+                    localStorage.removeItem('huerta_verificar_cache');
+                    localStorage.removeItem('huerta_verificar_cache_time');
+                    updateCacheStatus();
+                    if (!silencioso) showToast(deviceEstado === 'revocado' ? '🚫 El acceso de este equipo fue revocado.' : '⏳ Este equipo aún no ha sido autorizado.', 'error');
+                    return;
+                }
+
+                certCache = (data.certificados || []).map(function(rc) {
+                    return {
+                        numCert: rc.NUM_CERT,
+                        folio: rc.FOLIO,
+                        titular: rc.TITULAR,
+                        paquete: rc.PAQUETE,
+                        precioTotal: Number(rc.PRECIO_TOTAL) || 0,
+                        fechaEmision: typeof rc.FECHA_EMISION === 'string' ? rc.FECHA_EMISION.split('T')[0] : String(rc.FECHA_EMISION || ''),
+                        horaEmision: rc.HORA_EMISION || '',
+                        emitidoPor: rc.EMITIDO_POR || ''
+                    };
+                });
+                certCacheTime = new Date().toLocaleString('es-MX');
+                localStorage.setItem('huerta_verificar_cache', JSON.stringify(certCache));
+                localStorage.setItem('huerta_verificar_cache_time', certCacheTime);
+                updateCacheStatus();
+                if (!silencioso) showToast(`✅ Datos actualizados — ${certCache.length} certificado(s).`, 'success');
+            } catch (e) {
+                if (!silencioso) showToast('⚠ No se pudo actualizar (' + e.message + '). Usando datos guardados localmente.', 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="refresh-cw" class="h-3.5 w-3.5"></i> Actualizar datos'; safeCreateIcons(); }
+            }
+        }
+
+        function toggleQrPasteBox() {
+            document.getElementById('verify-qr-paste-box').classList.toggle('hidden');
+        }
+
+        function parseQrPegado() {
+            const texto = document.getElementById('verify-qr-paste-input').value;
+            const matchCert = texto.match(/N[°º]?\s*Certificado:\s*([A-Z0-9\-]+)/i);
+            const matchFolio = texto.match(/Folio:\s*([A-Z0-9\-]+)/i);
+            if (!matchCert && !matchFolio) {
+                showToast('No se reconocieron datos de certificado en el texto pegado.', 'error');
+                return;
+            }
+            if (matchCert) document.getElementById('verify-numcert-input').value = matchCert[1].toUpperCase();
+            if (matchFolio) document.getElementById('verify-folio-input').value = matchFolio[1].toUpperCase();
+            verificar();
+        }
+
+        function verificar() {
+            const inputNum = document.getElementById('verify-numcert-input').value.trim().toUpperCase();
+            const inputFolio = document.getElementById('verify-folio-input').value.trim().toUpperCase();
+            const resultBox = document.getElementById('verify-result-box');
+
+            if (!inputNum && !inputFolio) {
+                showToast('Ingresa el número de certificado y/o el folio para verificar.', 'error');
+                return;
+            }
+            if (deviceEstado !== 'autorizado') {
+                showToast('Este equipo todavía no está autorizado para verificar. Pide al administrador que lo apruebe.', 'error');
+                showConfig();
+                return;
+            }
+            if (!certCacheTime) {
+                showToast('Primero debes actualizar los datos (botón "Actualizar datos").', 'error');
+                return;
+            }
+
+            const coincidencias = certCache.filter(cert =>
+                (!inputNum || String(cert.numCert).toUpperCase() === inputNum) &&
+                (!inputFolio || String(cert.folio).toUpperCase() === inputFolio)
+            );
+
+            if (coincidencias.length === 0) {
+                resultBox.innerHTML = `
+                    <div class="bg-red-950/40 border border-red-700/50 rounded-xl p-5 flex items-start gap-3">
+                        <i data-lucide="x-circle" class="text-red-400 h-6 w-6 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <p class="text-red-400 font-bold text-sm">Certificado no encontrado</p>
+                            <p class="text-xs text-slate-400 mt-1">No existe ningún certificado registrado con esos datos. Verifica que el número de certificado y el folio estén escritos exactamente como aparecen en el documento, o presiona "Actualizar datos" para traer la información más reciente.</p>
+                        </div>
+                    </div>`;
+                safeCreateIcons();
+                return;
+            }
+
+            resultBox.innerHTML = coincidencias.map(cert => `
+                <div class="bg-emerald-950/30 border border-emerald-700/50 rounded-xl p-5">
+                    <div class="flex items-start gap-3 mb-4">
+                        <i data-lucide="badge-check" class="text-emerald-400 h-6 w-6 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <p class="text-emerald-400 font-bold text-sm">Certificado válido y auténtico</p>
+                            <p class="text-xs text-slate-400 mt-1">Este certificado fue emitido por el sistema de Servicios Funerarios Huerta y corresponde a un contrato 100% liquidado.</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-xs border-t border-emerald-800/40 pt-4">
+                        <div><span class="text-slate-500">Titular:</span> <span class="text-slate-200 font-semibold">${cert.titular || '—'}</span></div>
+                        <div><span class="text-slate-500">Folio de póliza:</span> <span class="text-amber-400 font-mono font-bold">${cert.folio}</span></div>
+                        <div><span class="text-slate-500">N° de certificado:</span> <span class="text-slate-200 font-mono">${cert.numCert}</span></div>
+                        <div><span class="text-slate-500">Plan / Paquete:</span> <span class="text-slate-200">${cert.paquete || '—'}</span></div>
+                        <div><span class="text-slate-500">Importe total liquidado:</span> <span class="text-emerald-400 font-bold">$${(Number(cert.precioTotal)||0).toLocaleString()} M.N.</span></div>
+                        <div><span class="text-slate-500">Emitido el:</span> <span class="text-slate-200">${cert.fechaEmision}${cert.horaEmision ? ' · ' + cert.horaEmision + ' hrs.' : ''}</span></div>
+                        <div><span class="text-slate-500">Emitido por:</span> <span class="text-slate-200">${cert.emitidoPor || '—'}</span></div>
+                    </div>
+                </div>`).join('<div class="h-2"></div>');
+            safeCreateIcons();
+        }
+
+        // === INSTALACIÓN COMO APP INDEPENDIENTE ===
+        let _installPrompt = null;
+        window.addEventListener('beforeinstallprompt', function(e) {
+            e.preventDefault();
+            _installPrompt = e;
+            const btn = document.getElementById('btn-install-verificar');
+            if (btn) btn.classList.remove('hidden');
+        });
+        window.addEventListener('appinstalled', function() {
+            _installPrompt = null;
+            const btn = document.getElementById('btn-install-verificar');
+            if (btn) btn.classList.add('hidden');
+            showToast('✅ Verificar Certificado instalado en este equipo.', 'success');
+        });
+        function triggerInstall() {
+            if (!_installPrompt) return;
+            _installPrompt.prompt();
+            _installPrompt.userChoice.then(function() { _installPrompt = null; });
+        }
+
+        // === ARRANQUE ===
+        window.addEventListener('load', function() {
+            safeCreateIcons();
+            updateConfigStatus();
+            updateCacheStatus();
+            updateOnlineStatus();
+            updateAuthBanner();
+            if (!verifyUrl) {
+                showConfig();
+            } else if (navigator.onLine) {
+                actualizarDatos(true); // refresco silencioso al abrir — también revalida la autorización
+            }
+        });
+    </script>
+</body>
+</html>
