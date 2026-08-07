@@ -219,7 +219,7 @@
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.19.1 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.20.0 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -343,7 +343,13 @@
                     <h3 class="font-serif font-bold text-lg text-slate-200 mb-1 flex items-center gap-2">
                         <i data-lucide="shield-check" class="text-amber-500 h-5 w-5"></i> Verificar Certificado de Liquidación
                     </h3>
-                    <p class="text-xs text-slate-400 mb-5">Cualquier colaborador puede confirmar aquí la autenticidad de un certificado — sin necesidad de acceder a las hojas de cálculo. Pide al titular el <b>número de certificado</b> y/o el <b>folio</b> impresos en el documento, o pídele que escanee el código QR y te lea el texto.</p>
+                    <p class="text-xs text-slate-400 mb-4">Cualquier colaborador puede confirmar aquí la autenticidad de un certificado — sin necesidad de acceder a las hojas de cálculo. Pide al titular el <b>número de certificado</b> y/o el <b>folio</b> impresos en el documento, o pídele que escanee el código QR y te lea el texto.</p>
+
+                    <a href="verificar/" target="_blank" class="mb-5 flex items-center gap-3 bg-emerald-950/30 border border-emerald-700/40 hover:border-emerald-500 rounded-lg p-3 text-xs transition">
+                        <i data-lucide="monitor-check" class="h-5 w-5 text-emerald-400 flex-shrink-0"></i>
+                        <span class="text-slate-300"><b class="text-emerald-400">¿Necesitas verificar desde otra computadora sin iniciar sesión?</b> Existe una página aparte, instalable como app de escritorio en cualquier equipo, para que el personal que conteste el teléfono verifique sin entrar a todo el sistema.</span>
+                        <i data-lucide="external-link" class="h-4 w-4 text-emerald-500 flex-shrink-0 ml-auto"></i>
+                    </a>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                         <div>
@@ -2207,10 +2213,34 @@ function doGet(e) {
   var output;
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var certSheet = ss.getSheetByName("CERTIFICADOS");
+
+    // ── MODO VERIFICACIÓN (público, de solo lectura) ──
+    // Usado por la página independiente verificar.html, instalable por separado del
+    // sistema principal, para que cualquier persona del personal pueda confirmar un
+    // certificado sin iniciar sesión. Devuelve ÚNICAMENTE el histórico de certificados
+    // — nunca contratos, abonos ni empleados (esas hojas sí incluyen datos sensibles
+    // como teléfonos, identificaciones y contraseñas).
+    if (e && e.parameter && e.parameter.modo === 'verificar') {
+      var verifyResponse = { result: "success", certificados: [] };
+      if (certSheet) {
+        var vData = certSheet.getDataRange().getValues();
+        if (vData.length > 1) {
+          var vHeaders = vData[0];
+          for (var vi = 1; vi < vData.length; vi++) {
+            var vRow = {};
+            for (var vj = 0; vj < vHeaders.length; vj++) { vRow[vHeaders[vj]] = vData[vi][vj]; }
+            verifyResponse.certificados.push(vRow);
+          }
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify(verifyResponse))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     var contractsSheet = ss.getSheetByName("CONTRATOS");
     var paymentsSheet  = ss.getSheetByName("ABONOS");
     var employeesSheet = ss.getSheetByName("EMPLEADOS");
-    var certSheet      = ss.getSheetByName("CERTIFICADOS");
 
     var response = { result: "success", contracts: [], payments: [], employees: [], certificados: [] };
 
