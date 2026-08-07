@@ -219,7 +219,7 @@
         
         <!-- Versión de la App -->
         <div class="px-4 pt-3 pb-1">
-            <span class="text-[10px] text-slate-600 font-mono">v7.21.0 · FH Huerta</span>
+            <span class="text-[10px] text-slate-600 font-mono">v7.21.1 · FH Huerta</span>
         </div>
         <!-- Status de Conexión y Offline en el Sidebar -->
         <div class="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
@@ -691,6 +691,9 @@
                             <i data-lucide="copy" class="h-3 w-3"></i> Copiar Código
                         </button>
                     </div>
+                    <p class="text-[11px] text-amber-400/90 bg-amber-950/20 border border-amber-800/30 rounded-lg p-2.5 leading-relaxed">
+                        ⚠ En script.google.com, antes de pegar: haz clic dentro del editor, presiona <b>Ctrl+A</b> (o Cmd+A) y luego <b>Suprimir/Backspace</b> para borrar TODO el código anterior. Pegar el código nuevo encima del viejo sin borrarlo es la causa más común de errores de sintaxis al guardar.
+                    </p>
                     <textarea id="apps-script-box" readonly class="w-full bg-slate-900 border border-slate-850 rounded-lg p-3 text-[10px] text-amber-500 font-mono focus:outline-none no-scrollbar" rows="12"></textarea>
                 </div>
 
@@ -5023,9 +5026,20 @@ function doPost(e) {
 
         function copyAppsScript() {
             const box = document.getElementById('apps-script-box');
+            box.focus();
             box.select();
-            document.execCommand('copy');
-            showToast("Código de Google Apps Script copiado.");
+            box.setSelectionRange(0, box.value.length);
+
+            const ok = function() { showToast("✅ Código copiado. En script.google.com, borra TODO el código anterior (Ctrl+A, Suprimir) antes de pegar el nuevo — no lo agregues al final."); };
+            const fail = function() { showToast("No se pudo copiar automáticamente. El texto ya está seleccionado abajo: usa Ctrl+C (o Cmd+C) para copiarlo manualmente.", "error"); };
+
+            if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+                navigator.clipboard.writeText(APPS_SCRIPT_SOURCE).then(ok).catch(function() {
+                    try { document.execCommand('copy') ? ok() : fail(); } catch (e) { fail(); }
+                });
+            } else {
+                try { document.execCommand('copy') ? ok() : fail(); } catch (e) { fail(); }
+            }
         }
 
         // --- CARGADORES DE INICIALIZACIÓN ---
