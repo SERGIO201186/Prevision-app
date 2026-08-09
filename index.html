@@ -662,6 +662,44 @@
                     </div>
                 </div>
 
+                <!-- Pagos de Mercado Pago pendientes de revisión -->
+                <div class="bg-slate-950 p-6 rounded-xl border border-emerald-800/30 space-y-3">
+                    <div class="flex items-start gap-3">
+                        <i data-lucide="credit-card" class="h-5 w-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <h4 class="font-semibold text-emerald-300 text-sm">Pagos Mercado Pago — Pendientes de Revisión</h4>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">Cuando un cliente paga desde su link de pago, aparece aquí como "Pendiente" — <b>no se descuenta del saldo del contrato hasta que confirmas</b>.</p>
+                            <details class="mt-2">
+                                <summary class="text-[11px] text-amber-500 cursor-pointer">Configuración inicial (una sola vez)</summary>
+                                <ol class="text-[11px] text-slate-400 mt-1.5 space-y-1 list-decimal list-inside">
+                                    <li>En <a href="https://www.mercadopago.com.mx/developers/panel" target="_blank" class="text-amber-500 underline">developers.mercadopago.com</a>, copia tu <b>Access Token de producción</b>.</li>
+                                    <li>En script.google.com → ⚙ <b>Configuración del proyecto</b> → <b>Propiedades del script</b> → agrega la propiedad <code class="text-amber-500">MP_ACCESS_TOKEN</code> con ese valor.</li>
+                                    <li>En el panel de Mercado Pago, sección <b>Webhooks / Notificaciones</b>, pega esta misma URL de Apps Script (la de "Copiar/Pegar URL" arriba) como URL de notificaciones para el evento <b>"Pagos"</b>.</li>
+                                </ol>
+                            </details>
+                        </div>
+                    </div>
+                    <button onclick="cargarPagosMP()" class="text-xs text-slate-400 hover:text-amber-400 border border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                        <i data-lucide="refresh-cw" class="h-3 w-3"></i> Actualizar lista de pagos
+                    </button>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-300">
+                            <thead class="bg-slate-900 text-slate-400 text-xs uppercase">
+                                <tr>
+                                    <th class="p-3">Folio</th>
+                                    <th class="p-3">Monto</th>
+                                    <th class="p-3">Fecha de pago</th>
+                                    <th class="p-3">Estado</th>
+                                    <th class="p-3 text-center">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pagosmp-tbody" class="divide-y divide-slate-800">
+                                <tr><td colspan="5" class="p-4 text-center text-slate-500 text-xs">Presiona "Actualizar lista" para cargar los pagos.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <!-- Respaldo de Firmas -->
                 <div class="bg-slate-950 border border-emerald-800/30 rounded-xl p-5 space-y-3">
                     <div class="flex items-start gap-3">
@@ -1393,6 +1431,10 @@
         // admin los autoriza o revoca desde la pestaña Sincronización Nube. No se persiste
         // localmente porque es información de control, siempre se consulta fresca.
         let dispositivos = [];
+
+        // Pagos de Mercado Pago detectados por el webhook y pendientes de que el admin los
+        // confirme antes de que cuenten como abono real. Tampoco se persiste localmente.
+        let pagosMP = [];
 
         // Cargar empleados de memoria o inicializar vacío
         let employees = JSON.parse(localStorage.getItem('huerta_employees')) || [];
@@ -2286,11 +2328,81 @@ function doGet(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // ── MODO PAGO (link único y permanente por cliente hacia Mercado Pago) ──
+    // El link que se comparte con el cliente siempre es el mismo (esta misma URL con su
+    // folio), pero CADA VEZ que se abre se genera una preferencia de pago nueva con el saldo
+    // pendiente actual — así el link nunca queda desactualizado si el cliente ya abonó algo.
+    if (e && e.parameter && e.parameter.modo === 'pagar') {
+      var folioPagar = e.parameter.folio || "";
+      var htmlPagar;
+      try {
+        var contratosPagarSheet = ss.getSheetByName("CONTRATOS");
+        var abonosPagarSheet = ss.getSheetByName("ABONOS");
+        var contratoEncontrado = null;
+        if (contratosPagarSheet) {
+          var cpRows = contratosPagarSheet.getDataRange().getValues();
+          for (var cpi = 1; cpi < cpRows.length; cpi++) {
+            if (String(cpRows[cpi][0]) === String(folioPagar)) {
+              contratoEncontrado = { titular: cpRows[cpi][1], paquete: cpRows[cpi][6], precioTotal: Number(cpRows[cpi][7]) || 0 };
+              break;
+            }
+          }
+        }
+        if (!contratoEncontrado) {
+          htmlPagar = '<p style="font-family:sans-serif;padding:2rem;">Folio no encontrado. Verifica el link con el administrador.</p>';
+        } else {
+          var totalAbonadoPagar = 0;
+          if (abonosPagarSheet) {
+            var apRows = abonosPagarSheet.getDataRange().getValues();
+            for (var api = 1; api < apRows.length; api++) {
+              if (String(apRows[api][1]) === String(folioPagar)) { totalAbonadoPagar += Number(apRows[api][2]) || 0; }
+            }
+          }
+          var saldoPagar = contratoEncontrado.precioTotal - totalAbonadoPagar;
+          if (saldoPagar <= 0) {
+            htmlPagar = '<p style="font-family:sans-serif;padding:2rem;">✅ El folio ' + folioPagar + ' ya está liquidado. No hay ningún saldo pendiente por pagar.</p>';
+          } else {
+            var mpTokenPagar = PropertiesService.getScriptProperties().getProperty('MP_ACCESS_TOKEN');
+            if (!mpTokenPagar) {
+              htmlPagar = '<p style="font-family:sans-serif;padding:2rem;">El pago en línea no está disponible todavía. Contacta al administrador.</p>';
+            } else {
+              var webAppUrl = ScriptApp.getService().getUrl();
+              var prefBody = {
+                items: [{ title: 'Previsión Huerta — Folio ' + folioPagar, quantity: 1, currency_id: 'MXN', unit_price: saldoPagar }],
+                external_reference: folioPagar,
+                back_urls: { success: webAppUrl, failure: webAppUrl, pending: webAppUrl },
+                auto_return: 'approved'
+              };
+              var prefRes = UrlFetchApp.fetch('https://api.mercadopago.com/checkout/preferences', {
+                method: 'post', contentType: 'application/json',
+                headers: { Authorization: 'Bearer ' + mpTokenPagar },
+                payload: JSON.stringify(prefBody), muteHttpExceptions: true
+              });
+              var prefData = JSON.parse(prefRes.getContentText());
+              var initPoint = prefData.init_point || prefData.sandbox_init_point;
+              if (!initPoint) {
+                htmlPagar = '<p style="font-family:sans-serif;padding:2rem;">No se pudo generar el link de pago. Intenta de nuevo más tarde o contacta al administrador.<br><small>' + (prefData.message || '') + '</small></p>';
+              } else {
+                htmlPagar = '<html><head><meta http-equiv="refresh" content="0;url=' + initPoint + '"></head>'
+                  + '<body style="font-family:sans-serif;padding:2rem;">Redirigiendo al pago de $' + saldoPagar.toLocaleString('es-MX') + ' M.N. (folio ' + folioPagar + ')…'
+                  + ' Si no avanza automáticamente, <a href="' + initPoint + '">haz clic aquí</a>.'
+                  + '<script>window.location.href=' + JSON.stringify(initPoint) + ';</script></body></html>';
+              }
+            }
+          }
+        }
+      } catch (pagarErr) {
+        htmlPagar = '<p style="font-family:sans-serif;padding:2rem;">Ocurrió un error generando el link de pago: ' + pagarErr.message + '</p>';
+      }
+      return HtmlService.createHtmlOutput(htmlPagar);
+    }
+
     var contractsSheet = ss.getSheetByName("CONTRATOS");
     var paymentsSheet  = ss.getSheetByName("ABONOS");
     var employeesSheet = ss.getSheetByName("EMPLEADOS");
+    var pagosMPSheet   = ss.getSheetByName("PAGOS_MP");
 
-    var response = { result: "success", contracts: [], payments: [], employees: [], certificados: [], dispositivos: [] };
+    var response = { result: "success", contracts: [], payments: [], employees: [], certificados: [], dispositivos: [], pagosMP: [] };
 
     if (contractsSheet) {
       var data = contractsSheet.getDataRange().getValues();
@@ -2347,6 +2459,17 @@ function doGet(e) {
         }
       }
     }
+    if (pagosMPSheet) {
+      var data6 = pagosMPSheet.getDataRange().getValues();
+      if (data6.length > 1) {
+        var headers6 = data6[0];
+        for (var i = 1; i < data6.length; i++) {
+          var row6 = {};
+          for (var j = 0; j < headers6.length; j++) { row6[headers6[j]] = data6[i][j]; }
+          response.pagosMP.push(row6);
+        }
+      }
+    }
     output = ContentService.createTextOutput(JSON.stringify(response))
       .setMimeType(ContentService.MimeType.JSON);
   } catch(err) {
@@ -2386,6 +2509,59 @@ function doPost(e) {
     if (!dispositivosSheet) {
       dispositivosSheet = ss.insertSheet("DISPOSITIVOS");
       dispositivosSheet.appendRow(["DEVICE_ID","NOMBRE","ESTADO","FECHA_SOLICITUD","FECHA_RESPUESTA"]);
+    }
+    var pagosMPSheet = ss.getSheetByName("PAGOS_MP");
+    if (!pagosMPSheet) {
+      pagosMPSheet = ss.insertSheet("PAGOS_MP");
+      pagosMPSheet.appendRow(["ID","FOLIO","MONTO","MP_PAYMENT_ID","FECHA_PAGO","ESTADO","FECHA_REVISION"]);
+    }
+
+    // ── WEBHOOK DE MERCADO PAGO ──
+    // Mercado Pago llama a esta misma URL cuando hay un pago nuevo. Puede llegar como POST
+    // con cuerpo JSON ({type:'payment', data:{id:...}}) o, en configuraciones antiguas (IPN),
+    // como query params (?topic=payment&id=...). Se revisa ANTES de intentar parsear el
+    // cuerpo como el JSON propio de la app, porque el webhook no sigue ese formato y podría
+    // no ser JSON válido. Nunca crea el abono directamente — solo dispone el pago para que
+    // el administrador lo confirme manualmente desde "Pagos Mercado Pago".
+    var mpParamId = (e && e.parameter) ? (e.parameter['data.id'] || e.parameter.id) : null;
+    var mpParamType = (e && e.parameter) ? (e.parameter.type || e.parameter.topic) : null;
+    var mpBodyPaymentId = null;
+    if (!mpParamId && e && e.postData && e.postData.contents) {
+      try {
+        var mpBody = JSON.parse(e.postData.contents);
+        if (mpBody && (mpBody.type === 'payment' || mpBody.action === 'payment.created' || mpBody.action === 'payment.updated') && mpBody.data && mpBody.data.id) {
+          mpBodyPaymentId = mpBody.data.id;
+        }
+      } catch (mpParseErr) { /* no era JSON del webhook, sigue el flujo normal */ }
+    }
+    var mpPaymentId = mpBodyPaymentId || ((mpParamType === 'payment') ? mpParamId : null);
+    if (mpPaymentId) {
+      try {
+        var mpToken = PropertiesService.getScriptProperties().getProperty('MP_ACCESS_TOKEN');
+        if (!mpToken) throw new Error('MP_ACCESS_TOKEN no configurado en Propiedades del script.');
+        var mpPayRes = UrlFetchApp.fetch('https://api.mercadopago.com/v1/payments/' + encodeURIComponent(mpPaymentId), {
+          headers: { Authorization: 'Bearer ' + mpToken }, muteHttpExceptions: true
+        });
+        var mpPay = JSON.parse(mpPayRes.getContentText());
+        if (mpPay && mpPay.status === 'approved' && mpPay.external_reference) {
+          var mpRows = pagosMPSheet.getDataRange().getValues();
+          var yaExiste = false;
+          for (var mpi = 1; mpi < mpRows.length; mpi++) {
+            if (String(mpRows[mpi][3]) === String(mpPaymentId)) { yaExiste = true; break; }
+          }
+          if (!yaExiste) {
+            pagosMPSheet.appendRow([
+              Utilities.getUuid(), mpPay.external_reference, mpPay.transaction_amount || 0,
+              String(mpPaymentId), new Date().toLocaleString('es-MX'), 'pendiente_revision', ''
+            ]);
+          }
+        }
+        Logger.log('Webhook MP procesado: pago ' + mpPaymentId + ', status ' + (mpPay && mpPay.status));
+      } catch (mpErr) {
+        Logger.log('Error procesando webhook de Mercado Pago: ' + mpErr.toString());
+      }
+      return ContentService.createTextOutput(JSON.stringify({ result: 'ok' }))
+        .setMimeType(ContentService.MimeType.JSON);
     }
 
     // El cuerpo llega como text/plain para evitar preflight CORS
@@ -2437,6 +2613,51 @@ function doPost(e) {
           .setMimeType(ContentService.MimeType.JSON);
       } catch (d2Err) {
         return ContentService.createTextOutput(JSON.stringify({ ok: false, error: d2Err.message }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+    // ── ADMIN: CONFIRMAR UN PAGO DE MERCADO PAGO (lo convierte en abono real) ──
+    if (payload.accion === 'confirmarPagoMP' && payload.idPagoMP) {
+      try {
+        var cmRows = pagosMPSheet.getDataRange().getValues();
+        var cmFound = -1;
+        for (var cmi = 1; cmi < cmRows.length; cmi++) {
+          if (String(cmRows[cmi][0]) === String(payload.idPagoMP)) { cmFound = cmi + 1; break; }
+        }
+        if (cmFound === -1) throw new Error('Pago no encontrado.');
+        var cmRow = cmRows[cmFound - 1];
+        if (String(cmRow[5]) !== 'pendiente_revision') throw new Error('Este pago ya fue revisado.');
+        paymentsSheet.appendRow([
+          Utilities.getUuid(), cmRow[1], cmRow[2], 'Mercado Pago', 'MP-' + cmRow[3],
+          cmRow[4], 'Confirmado por admin desde pago de Mercado Pago #' + cmRow[3]
+        ]);
+        pagosMPSheet.getRange(cmFound, 6).setValue('confirmado');
+        pagosMPSheet.getRange(cmFound, 7).setValue(new Date().toLocaleString('es-MX'));
+        return ContentService.createTextOutput(JSON.stringify({ ok: true }))
+          .setMimeType(ContentService.MimeType.JSON);
+      } catch (cmErr) {
+        return ContentService.createTextOutput(JSON.stringify({ ok: false, error: cmErr.message }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+    // ── ADMIN: DESCARTAR UN PAGO DE MERCADO PAGO (no genera abono) ──
+    if (payload.accion === 'descartarPagoMP' && payload.idPagoMP) {
+      try {
+        var dmRows = pagosMPSheet.getDataRange().getValues();
+        var dmFound = -1;
+        for (var dmi = 1; dmi < dmRows.length; dmi++) {
+          if (String(dmRows[dmi][0]) === String(payload.idPagoMP)) { dmFound = dmi + 1; break; }
+        }
+        if (dmFound !== -1) {
+          pagosMPSheet.getRange(dmFound, 6).setValue('descartado');
+          pagosMPSheet.getRange(dmFound, 7).setValue(new Date().toLocaleString('es-MX'));
+        }
+        return ContentService.createTextOutput(JSON.stringify({ ok: true }))
+          .setMimeType(ContentService.MimeType.JSON);
+      } catch (dmErr) {
+        return ContentService.createTextOutput(JSON.stringify({ ok: false, error: dmErr.message }))
           .setMimeType(ContentService.MimeType.JSON);
       }
     }
@@ -3754,6 +3975,77 @@ function doPost(e) {
             }
         }
 
+        async function cargarPagosMP() {
+            if (!googleScriptUrl) { showToast('Configura primero la URL de Google Apps Script.', 'error'); return; }
+            try {
+                const res = await fetch(googleScriptUrl + '?v=' + Date.now());
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                if (data.result !== 'success') throw new Error(data.message || 'El script reportó un error.');
+                pagosMP = (data.pagosMP || []).map(p => ({
+                    id: p.ID, folio: p.FOLIO, monto: Number(p.MONTO) || 0, mpPaymentId: p.MP_PAYMENT_ID,
+                    fechaPago: p.FECHA_PAGO, estado: p.ESTADO || 'pendiente_revision'
+                })).filter(p => p.estado === 'pendiente_revision');
+                renderPagosMP();
+            } catch (e) {
+                showToast('No se pudo cargar la lista de pagos: ' + e.message, 'error');
+            }
+        }
+
+        function renderPagosMP() {
+            const tbody = document.getElementById('pagosmp-tbody');
+            if (!tbody) return;
+            if (pagosMP.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500 text-xs">No hay pagos pendientes de revisión.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = pagosMP.map(p => `<tr>
+                    <td class="p-3 font-mono text-amber-500">${p.folio}</td>
+                    <td class="p-3 font-semibold text-emerald-400">$${p.monto.toLocaleString('es-MX')}</td>
+                    <td class="p-3 text-xs">${p.fechaPago || '—'}</td>
+                    <td class="p-3"><span class="text-amber-400 font-semibold text-xs">⏳ Pendiente</span></td>
+                    <td class="p-3 text-center flex gap-2 justify-center">
+                        <button onclick="confirmarPagoMP('${p.id}')" class="text-emerald-400 hover:text-emerald-300 text-xs font-semibold border border-emerald-700/50 px-3 py-1.5 rounded-lg">Confirmar</button>
+                        <button onclick="descartarPagoMP('${p.id}')" class="text-red-400 hover:text-red-300 text-xs font-semibold border border-red-900/50 px-3 py-1.5 rounded-lg">Descartar</button>
+                    </td>
+                </tr>`).join('');
+        }
+
+        async function confirmarPagoMP(idPagoMP) {
+            if (!googleScriptUrl) return;
+            try {
+                const res = await fetch(googleScriptUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'confirmarPagoMP', idPagoMP: idPagoMP })
+                });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || 'Error desconocido');
+                showToast('✅ Pago confirmado y abonado al contrato.', 'success');
+                cargarPagosMP();
+            } catch (e) {
+                showToast('No se pudo confirmar el pago: ' + e.message, 'error');
+            }
+        }
+
+        async function descartarPagoMP(idPagoMP) {
+            if (!googleScriptUrl) return;
+            if (!confirm('¿Descartar este pago? No se registrará como abono.')) return;
+            try {
+                const res = await fetch(googleScriptUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'descartarPagoMP', idPagoMP: idPagoMP })
+                });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || 'Error desconocido');
+                showToast('Pago descartado.', 'success');
+                cargarPagosMP();
+            } catch (e) {
+                showToast('No se pudo descartar el pago: ' + e.message, 'error');
+            }
+        }
+
         function exportFirmas() {
             const firmados = clients.filter(c => c.firmaBase64);
             if (firmados.length === 0) {
@@ -4012,6 +4304,8 @@ function doPost(e) {
                     '<div class="pt-2 border-t border-slate-900 flex flex-wrap gap-2">' +
                         '<button onclick="printContract(\'' + c.folio + '\')" class="bg-amber-600 hover:bg-amber-700 text-slate-950 text-xs font-bold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="printer" class="h-3.5 w-3.5"></i> Imprimir</button>' +
                         '<button onclick="sendWhatsAppContract(\'' + c.folio + '\')" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="send" class="h-3.5 w-3.5"></i> WhatsApp</button>' +
+                        (status !== 'liquidado' ? '<button onclick="sendPaymentReminder(\'' + c.folio + '\')" class="bg-slate-900 border border-amber-700/40 hover:bg-amber-950/30 text-amber-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="bell" class="h-3.5 w-3.5"></i> Recordar pago</button>' : '') +
+                        (status !== 'liquidado' ? '<button onclick="copyPaymentLink(\'' + c.folio + '\')" class="bg-slate-900 border border-slate-700 hover:border-emerald-500 text-slate-400 hover:text-emerald-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="link" class="h-3.5 w-3.5"></i> Link de pago</button>' : '') +
                         (status !== 'liquidado' ? '<button onclick="openPaymentModalWithClient(\'' + c.folio + '\')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="dollar-sign" class="h-3.5 w-3.5"></i> Abonar</button>' : '<button onclick="printCertificado(\'' + c.folio + '\')" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="award" class="h-3.5 w-3.5"></i> Certificado</button>') +
                         '<button onclick="openClientHistory(\'' + c.folio + '\')" class="bg-slate-900 border border-emerald-700/40 hover:bg-emerald-950/30 text-emerald-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="clock" class="h-3.5 w-3.5"></i> Historial</button>' +
                         '<button onclick="openNewSignatureBox(\'' + c.folio + '\')" class="bg-slate-900 border border-slate-700 hover:text-white text-slate-400 text-xs px-3 py-2 rounded">Firma</button>' +
@@ -4905,6 +5199,34 @@ function doPost(e) {
             };
         }
 
+        // --- LINK DE PAGO (Mercado Pago) ---
+        // Mismo link siempre para cada folio — el saldo se recalcula en el servidor cada
+        // vez que se abre, así que nunca hay que regenerarlo aunque el cliente ya haya
+        // abonado algo. Nunca se envía solo: el asesor lo comparte manualmente si lo piden.
+        function paymentLinkFor(folio) {
+            if (!googleScriptUrl) return '';
+            const sep = googleScriptUrl.includes('?') ? '&' : '?';
+            return googleScriptUrl + sep + 'modo=pagar&folio=' + encodeURIComponent(folio);
+        }
+
+        function copyPaymentLink(folio) {
+            const link = paymentLinkFor(folio);
+            if (!link) { showToast('Configura primero la URL de Google Apps Script.', 'error'); return; }
+            const ok = function() { showToast('✅ Link de pago copiado.', 'success'); };
+            const fail = function() { prompt('Copia manualmente el link de pago:', link); };
+            if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+                navigator.clipboard.writeText(link).then(ok).catch(fail);
+            } else {
+                fail();
+            }
+        }
+
+        function sendPaymentReminder(folio) {
+            const c = clients.find(cl => cl.folio === folio);
+            if (!c) return;
+            sendWhatsAppMessage(c, 'recordatorio');
+        }
+
         // --- SISTEMA DE ENVÍO DE MENSAJES VÍA WHATSAPP ---
         function sendWhatsAppContract(folio) {
             const c = clients.find(cl => cl.folio === folio);
@@ -4949,6 +5271,8 @@ function doPost(e) {
                     break;
                 case 'recordatorio':
                     mensaje = `${saludo} Le recordamos que está por vencer su cuota de previsión ${periodicidad} de $${cuotaCalculada.toLocaleString()} pesos para su plan con folio *${cliente.folio}*. Su saldo restante a liquidar es de $${restante.toLocaleString()} pesos.`;
+                    const linkPagoRecordatorio = paymentLinkFor(cliente.folio);
+                    if (linkPagoRecordatorio) mensaje += `\n\nPuede pagarlo en línea aquí: ${linkPagoRecordatorio}`;
                     break;
                 case 'confirmacion':
                     mensaje = `${saludo} Confirmamos el abono registrado a su plan con folio *${cliente.folio}*. Su saldo total cubierto al momento es de $${cliente.montoPagado.toLocaleString()} pesos, restando únicamente $${restante.toLocaleString()} pesos. ¡Agradecemos su puntual previsión!`;
