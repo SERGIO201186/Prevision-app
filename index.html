@@ -2288,6 +2288,17 @@ function doOptions(e) {
     .setMimeType(ContentService.MimeType.TEXT);
 }
 
+// Evita XSS al insertar parámetros de la URL (o datos de las hojas) dentro de HTML
+// generado por el servidor (páginas de modo=pagar / modo=pagoResultado).
+function escapeHtml(str) {
+  return String(str === null || str === undefined ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function doGet(e) {
   var output;
   try {
@@ -2343,7 +2354,7 @@ function doGet(e) {
       var htmlResultado = '<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>'
         + '<body style="font-family:sans-serif;max-width:420px;margin:3rem auto;padding:0 1rem;text-align:center;color:#222;">'
         + '<h2>Previsión Huerta</h2>'
-        + (folioResultado ? '<p style="color:#666;">Folio ' + folioResultado + '</p>' : '')
+        + (folioResultado ? '<p style="color:#666;">Folio ' + escapeHtml(folioResultado) + '</p>' : '')
         + '<p style="font-size:1.1rem;">' + mensajeResultado + '</p>'
         + '</body></html>';
       return HtmlService.createHtmlOutput(htmlResultado);
@@ -2384,7 +2395,7 @@ function doGet(e) {
           }
           var saldoPagar = contratoEncontrado.precioTotal - totalAbonadoPagar;
           if (saldoPagar <= 0) {
-            htmlPagar = '<p style="font-family:sans-serif;padding:2rem;">✅ El folio ' + folioPagar + ' ya está liquidado. No hay ningún saldo pendiente por pagar.</p>';
+            htmlPagar = '<p style="font-family:sans-serif;padding:2rem;">✅ El folio ' + escapeHtml(folioPagar) + ' ya está liquidado. No hay ningún saldo pendiente por pagar.</p>';
           } else {
             var cuotaPeriodicaPagar = contratoEncontrado.cuotas > 0
               ? Math.round((contratoEncontrado.precioTotal - contratoEncontrado.enganche) / contratoEncontrado.cuotas)
@@ -2400,12 +2411,12 @@ function doGet(e) {
               htmlPagar = '<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>'
                 + '<body style="font-family:sans-serif;max-width:420px;margin:2rem auto;padding:0 1rem;color:#222;">'
                 + '<h2 style="margin-bottom:0;">Previsión Huerta</h2>'
-                + '<p style="color:#666;margin-top:4px;">Folio ' + folioPagar + ' — ' + (contratoEncontrado.titular || '') + '</p>'
+                + '<p style="color:#666;margin-top:4px;">Folio ' + escapeHtml(folioPagar) + ' — ' + escapeHtml(contratoEncontrado.titular) + '</p>'
                 + '<p style="font-size:14px;color:#666;">Cuota ' + periodicidadTexto + ' pactada: <b>$' + cuotaPeriodicaPagar.toLocaleString('es-MX') + ' M.N.</b><br>'
                 + 'Saldo total pendiente: $' + saldoPagar.toLocaleString('es-MX') + ' M.N.</p>'
                 + '<form method="get" action="' + ScriptApp.getService().getUrl() + '" target="_top">'
                 + '<input type="hidden" name="modo" value="pagar">'
-                + '<input type="hidden" name="folio" value="' + folioPagar + '">'
+                + '<input type="hidden" name="folio" value="' + escapeHtml(folioPagar) + '">'
                 + '<label style="display:block;margin:1rem 0 0.3rem;font-weight:bold;">Monto a pagar</label>'
                 + '<input type="number" name="monto" value="' + cuotaPeriodicaPagar + '" min="1" max="' + saldoPagar + '" step="1" '
                 + 'style="width:100%;box-sizing:border-box;font-size:1.2rem;padding:0.6rem;border:1px solid #ccc;border-radius:8px;">'
@@ -2448,7 +2459,7 @@ function doGet(e) {
                   // evita que el analizador de HTML del navegador confunda este texto con el
                   // cierre real del <script> de la app (ver PR #10).
                   htmlPagar = '<html><head><meta http-equiv="refresh" content="2;url=' + initPoint + '"></head>'
-                    + '<body style="font-family:sans-serif;padding:2rem;">Redirigiendo al pago de $' + montoParam.toLocaleString('es-MX') + ' M.N. (folio ' + folioPagar + ')…'
+                    + '<body style="font-family:sans-serif;padding:2rem;">Redirigiendo al pago de $' + montoParam.toLocaleString('es-MX') + ' M.N. (folio ' + escapeHtml(folioPagar) + ')…'
                     + ' Si no avanza automáticamente, <a href="' + initPoint + '" target="_top">haz clic aquí</a>.'
                     + '<script>window.top.location.href=' + JSON.stringify(initPoint) + ';<\/script>'
                     + '</body></html>';

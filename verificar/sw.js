@@ -4,7 +4,7 @@
 // del sistema principal — así se puede instalar por separado.
 // ═══════════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'huerta-verificar-v1';
+const CACHE_NAME = 'huerta-verificar-v2';
 
 self.addEventListener('install', function(event) {
     event.waitUntil(
@@ -67,18 +67,16 @@ self.addEventListener('fetch', function(event) {
         return;
     }
 
-    // Página de verificación — cache primero, actualizar en background
+    // Página de verificación — red primero, caché solo como respaldo sin conexión
     event.respondWith(
-        caches.match(event.request).then(function(cached) {
-            const networkFetch = fetch(event.request).then(function(response) {
-                if (response && response.ok) {
-                    const clone = response.clone();
-                    caches.open(CACHE_NAME).then(function(c) { c.put(event.request, clone); });
-                }
-                return response;
-            }).catch(function() { return null; });
-
-            return cached || networkFetch;
+        fetch(event.request).then(function(response) {
+            if (response && response.ok) {
+                const clone = response.clone();
+                caches.open(CACHE_NAME).then(function(c) { c.put(event.request, clone); });
+            }
+            return response;
+        }).catch(function() {
+            return caches.match(event.request);
         })
     );
 });
