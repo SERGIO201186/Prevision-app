@@ -2415,9 +2415,16 @@ function doGet(e) {
                 if (!initPoint) {
                   htmlPagar = '<p style="font-family:sans-serif;padding:2rem;">No se pudo generar el link de pago. Intenta de nuevo más tarde o contacta al administrador.<br><small>' + (prefData.message || '') + '</small></p>';
                 } else {
-                  htmlPagar = '<html><head><meta http-equiv="refresh" content="0;url=' + initPoint + '"></head>'
+                  // window.top.location fuerza a que TODA la pestaña navegue a Mercado Pago,
+                  // rompiendo el iframe interno de Apps Script — si el pago se queda dentro de
+                  // ese iframe, el propio antifraude de Mercado Pago bloquea el botón "Pagar"
+                  // por verse como un posible clickjacking. La barra "<\/script>" (con backslash)
+                  // evita que el analizador de HTML del navegador confunda este texto con el
+                  // cierre real del <script> de la app (ver PR #10).
+                  htmlPagar = '<html><head><meta http-equiv="refresh" content="2;url=' + initPoint + '"></head>'
                     + '<body style="font-family:sans-serif;padding:2rem;">Redirigiendo al pago de $' + montoParam.toLocaleString('es-MX') + ' M.N. (folio ' + folioPagar + ')…'
                     + ' Si no avanza automáticamente, <a href="' + initPoint + '" target="_top">haz clic aquí</a>.'
+                    + '<script>window.top.location.href=' + JSON.stringify(initPoint) + ';<\/script>'
                     + '</body></html>';
                 }
               }
