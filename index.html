@@ -5513,10 +5513,11 @@ function doPost(e) {
         // Mismo link siempre para cada folio — el saldo se recalcula en el servidor cada
         // vez que se abre, así que nunca hay que regenerarlo aunque el cliente ya haya
         // abonado algo. Nunca se envía solo: el asesor lo comparte manualmente si lo piden.
+        // Usa la página /pagar/ (mismo dominio de la app) en vez de la URL de Apps Script
+        // directamente — así el cliente nunca ve la URL larga y técnica de script.google.com.
         function paymentLinkFor(folio) {
             if (!googleScriptUrl) return '';
-            const sep = googleScriptUrl.includes('?') ? '&' : '?';
-            return googleScriptUrl + sep + 'modo=pagar&folio=' + encodeURIComponent(folio);
+            return new URL('pagar/?folio=' + encodeURIComponent(folio), window.location.href).href;
         }
 
         function copyPaymentLink(folio) {
