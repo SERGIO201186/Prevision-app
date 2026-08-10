@@ -2382,7 +2382,7 @@ function doGet(e) {
                 + '<p style="color:#666;margin-top:4px;">Folio ' + folioPagar + ' — ' + (contratoEncontrado.titular || '') + '</p>'
                 + '<p style="font-size:14px;color:#666;">Cuota ' + periodicidadTexto + ' pactada: <b>$' + cuotaPeriodicaPagar.toLocaleString('es-MX') + ' M.N.</b><br>'
                 + 'Saldo total pendiente: $' + saldoPagar.toLocaleString('es-MX') + ' M.N.</p>'
-                + '<form method="get" action="' + ScriptApp.getService().getUrl() + '">'
+                + '<form method="get" action="' + ScriptApp.getService().getUrl() + '" target="_top">'
                 + '<input type="hidden" name="modo" value="pagar">'
                 + '<input type="hidden" name="folio" value="' + folioPagar + '">'
                 + '<label style="display:block;margin:1rem 0 0.3rem;font-weight:bold;">Monto a pagar</label>'
@@ -2417,7 +2417,7 @@ function doGet(e) {
                 } else {
                   htmlPagar = '<html><head><meta http-equiv="refresh" content="0;url=' + initPoint + '"></head>'
                     + '<body style="font-family:sans-serif;padding:2rem;">Redirigiendo al pago de $' + montoParam.toLocaleString('es-MX') + ' M.N. (folio ' + folioPagar + ')…'
-                    + ' Si no avanza automáticamente, <a href="' + initPoint + '">haz clic aquí</a>.'
+                    + ' Si no avanza automáticamente, <a href="' + initPoint + '" target="_top">haz clic aquí</a>.'
                     + '</body></html>';
                 }
               }
