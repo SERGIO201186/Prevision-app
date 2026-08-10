@@ -2729,6 +2729,18 @@ function doPost(e) {
         ]);
         pagosMPSheet.getRange(cmFound, 6).setValue('confirmado');
         pagosMPSheet.getRange(cmFound, 7).setValue(new Date().toLocaleString('es-MX'));
+
+        // El dashboard de la app lee "Abonado" directo de PAGADO_A_LA_FECHA en CONTRATOS
+        // (no lo calcula sumando ABONOS) — sin esto, el pago quedaría en la hoja de ABONOS
+        // pero nunca se reflejaría en el saldo del contrato.
+        var cmContratosRows = contractsSheet.getDataRange().getValues();
+        for (var cci = 1; cci < cmContratosRows.length; cci++) {
+          if (String(cmContratosRows[cci][0]) === String(cmRow[1])) {
+            var pagadoActual = Number(cmContratosRows[cci][9]) || 0;
+            contractsSheet.getRange(cci + 1, 10).setValue(pagadoActual + Number(cmRow[2]));
+            break;
+          }
+        }
         return ContentService.createTextOutput(JSON.stringify({ ok: true }))
           .setMimeType(ContentService.MimeType.JSON);
       } catch (cmErr) {
@@ -4135,6 +4147,9 @@ function doPost(e) {
                 if (!data.ok) throw new Error(data.error || 'Error desconocido');
                 showToast('✅ Pago confirmado y abonado al contrato.', 'success');
                 cargarPagosMP();
+                // El servidor ya actualizó el saldo del contrato — se sincroniza para que el
+                // dashboard y el historial de pagos reflejen el abono nuevo sin recargar la página.
+                syncPendingData();
             } catch (e) {
                 showToast('No se pudo confirmar el pago: ' + e.message, 'error');
             }
