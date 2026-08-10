@@ -1510,6 +1510,10 @@
         let canvas, ctx;
         let lockedSignatureData = "";
         let currentActiveUser = null;
+        // Credencial (PIN o usuario/contraseña) del colaborador con sesión activa — se manda
+        // con cada sincronización para que el servidor verifique que quien escribe en las
+        // hojas es un empleado real. Se restaura desde localStorage en checkSession().
+        let _authCred = null;
 
         // Lista Oficial de Paquetes Autorizados
         // ═══════════════════════════════════════════════════════════════
@@ -1851,7 +1855,7 @@
             return null;
         }
 
-        function entrarConColaborador(colaborador, userInLocal) {
+        function entrarConColaborador(colaborador, userInLocal, authCred) {
             const sesion = {
                 id: colaborador.id || 'compartido', nombre: colaborador.nombre || 'Colaborador',
                 puesto: colaborador.puesto || '', telefono: colaborador.telefono || '',
@@ -1859,6 +1863,12 @@
             };
             currentActiveUser = sesion;
             localStorage.setItem('huerta_session', JSON.stringify(sesion));
+            // Credencial (PIN o usuario/contraseña) que se manda con cada sincronización para
+            // que el servidor verifique que quien escribe en las hojas es un empleado real
+            // — nunca basta con conocer la URL de Apps Script. Se guarda localmente en ESTE
+            // dispositivo (igual que ya se guardaban las contraseñas en la caché de empleados).
+            _authCred = authCred || null;
+            localStorage.setItem('huerta_auth_cred', JSON.stringify(_authCred));
             document.getElementById('login-screen').style.display = 'none';
             try { initApp(); } catch (err) { console.error('initApp error:', err); }
             try { cargarTiendaCache(); } catch (err) {}
@@ -1872,7 +1882,7 @@
 
             // 1. Backend compartido (mismo PIN que en la app de ODS / Panel)
             const colaborador = await intentarAccesoCompartido({ pin });
-            if (colaborador) { entrarConColaborador(colaborador); LOGIN_PIN = ''; updateLoginPinDots(); return; }
+            if (colaborador) { entrarConColaborador(colaborador, null, { pin: pin }); LOGIN_PIN = ''; updateLoginPinDots(); return; }
 
             // 2. Respaldo sin conexión: solo colaboradores que YA iniciaron sesión antes en
             // ESTE equipo (su PIN quedó en el almacenamiento local de este dispositivo, nunca
@@ -1881,7 +1891,7 @@
             let emps = [];
             try { emps = JSON.parse(localStorage.getItem('huerta_employees')) || []; } catch (ex) { emps = []; }
             const foundLocal = emps.find(function (emp) { return (String(emp.pin || '') === pin || String(emp.contrasena || '') === pin) && emp.estatus === 'Activo'; });
-            if (foundLocal) { entrarConColaborador(foundLocal); LOGIN_PIN = ''; updateLoginPinDots(); return; }
+            if (foundLocal) { entrarConColaborador(foundLocal, null, { pin: pin }); LOGIN_PIN = ''; updateLoginPinDots(); return; }
 
             document.getElementById('login-pin-status').textContent = 'PIN incorrecto';
             LOGIN_PIN = ''; updateLoginPinDots();
@@ -1895,7 +1905,7 @@
 
             // 1. Backend compartido (mismo usuario/contraseña que en la app de ODS / Panel)
             const colaborador = await intentarAccesoCompartido({ usuario: userIn, contrasena: passIn });
-            if (colaborador) { entrarConColaborador(colaborador, userIn); return; }
+            if (colaborador) { entrarConColaborador(colaborador, userIn, { usuario: userIn, contrasena: passIn }); return; }
 
             // 2. Respaldo local (cuentas creadas solo dentro de esta app, ej. admin/1234)
             let emps = [];
@@ -1915,7 +1925,7 @@
             });
 
             if (found) {
-                entrarConColaborador(found, userIn);
+                entrarConColaborador(found, userIn, { usuario: userIn, contrasena: passIn });
             } else {
                 showToast('Usuario o contraseña incorrectos. Verifica tus datos.', 'error');
                 document.getElementById('login-password').value = '';
@@ -1928,6 +1938,7 @@
                 const savedSession = localStorage.getItem('huerta_session');
                 if (savedSession) {
                     currentActiveUser = JSON.parse(savedSession);
+                    try { _authCred = JSON.parse(localStorage.getItem('huerta_auth_cred')) || null; } catch(ex) { _authCred = null; }
                     document.getElementById('login-screen').style.display = 'none';
                     try { initApp(); } catch(err) { console.error('initApp error:', err); }
                     try { cargarTiendaCache(); } catch(err) {}
@@ -1939,7 +1950,9 @@
 
         function handleLogout() {
             localStorage.removeItem('huerta_session');
+            localStorage.removeItem('huerta_auth_cred');
             currentActiveUser = null;
+            _authCred = null;
             document.getElementById('login-screen').style.display = 'flex';
             document.getElementById('login-username').value = '';
             document.getElementById('login-password').value = '';
@@ -2538,14 +2551,14 @@ function doGet(e) {
   return output;
 }
 
-// Verifica que quien hace la llamada de verdad tenga credenciales de administrador
-// ACTIVAS en la hoja EMPLEADOS — nunca basta con conocer la URL del Web App. Se usa
-// para proteger las acciones sensibles (autorizar/revocar equipos, confirmar/descartar
-// pagos de Mercado Pago). auth puede traer { pin } o { usuario, contrasena }.
-function verificarAdmin(auth) {
-  if (!auth) return false;
+// Busca en EMPLEADOS un empleado ACTIVO cuyas credenciales (PIN o usuario/contraseña)
+// coincidan con las que mandó la llamada. Devuelve la fila si hay coincidencia, o null.
+// Es la base de toda la autenticación del backend: nunca basta con conocer la URL del
+// Web App — hace falta una credencial real de un empleado activo.
+function buscarEmpleadoPorAuth(auth) {
+  if (!auth) return null;
   var eSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("EMPLEADOS");
-  if (!eSheet) return false;
+  if (!eSheet) return null;
   var rows = eSheet.getDataRange().getValues();
   // Columnas: ID(0) NOMBRE(1) PUESTO(2) TELEFONO(3) ESTATUS(4) USUARIO(5) CONTRASENA(6) PIN(7)
   for (var i = 1; i < rows.length; i++) {
@@ -2558,12 +2571,25 @@ function verificarAdmin(auth) {
     } else if (auth.usuario && auth.contrasena) {
       coincide = (String(row[5]) === String(auth.usuario) && String(row[6]) === String(auth.contrasena));
     }
-    if (!coincide) continue;
-    var usuario = String(row[5] || '').toLowerCase();
-    var puesto = String(row[2] || '').toLowerCase();
-    return usuario === 'admin' || puesto.indexOf('director') !== -1 || puesto.indexOf('administrador general') !== -1;
+    if (coincide) return row;
   }
-  return false;
+  return null;
+}
+
+// true si una fila de EMPLEADOS (o los campos usuario/puesto de un registro entrante)
+// corresponde a un rol de administrador.
+function esAdminPorCampos(usuario, puesto) {
+  var u = String(usuario || '').toLowerCase();
+  var p = String(puesto || '').toLowerCase();
+  return u === 'admin' || p.indexOf('director') !== -1 || p.indexOf('administrador general') !== -1;
+}
+
+// Verifica que quien hace la llamada de verdad tenga credenciales de ADMINISTRADOR
+// activas — se usa para las acciones más sensibles (autorizar/revocar equipos,
+// confirmar/descartar pagos de Mercado Pago). auth puede traer { pin } o { usuario, contrasena }.
+function verificarAdmin(auth) {
+  var row = buscarEmpleadoPorAuth(auth);
+  return row ? esAdminPorCampos(row[5], row[2]) : false;
 }
 
 function doPost(e) {
@@ -2866,6 +2892,22 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // ── SINCRONIZACIÓN GENERAL (contratos, abonos, empleados, certificados) ──
+    // Antes cualquiera con la URL del Web App podía escribir directamente aquí — incluso
+    // crearse su propia cuenta de administrador mandando un empleado con usuario "admin".
+    // Ahora hace falta la credencial real de un empleado activo (payload.auth: {pin} o
+    // {usuario, contrasena}) para poder subir cualquier dato.
+    var empleadoQueSincroniza = null;
+    if (payload.contracts || payload.payments || payload.employees || payload.certificados) {
+      empleadoQueSincroniza = buscarEmpleadoPorAuth(payload.auth);
+      if (!empleadoQueSincroniza) {
+        output = ContentService.createTextOutput(JSON.stringify({ result: "error", message: "No autorizado. Vuelve a iniciar sesión." }))
+          .setMimeType(ContentService.MimeType.JSON);
+        return output;
+      }
+    }
+    var quienSincronizaEsAdmin = empleadoQueSincroniza ? esAdminPorCampos(empleadoQueSincroniza[5], empleadoQueSincroniza[2]) : false;
+
     // ── Contratos ──
     if (payload.contracts && payload.contracts.length > 0) {
       var cData = contractsSheet.getDataRange().getValues();
@@ -2920,6 +2962,9 @@ function doPost(e) {
       var eData = employeesSheet.getDataRange().getValues();
       payload.employees.forEach(function(emp) {
         if (emp.id === 'admin-default') return; // nunca subir el admin al sheet
+        // Un empleado sin rol de administrador no puede otorgarse (ni otorgarle a nadie)
+        // el rol de administrador a través de la sincronización — solo un admin puede.
+        if (!quienSincronizaEsAdmin && esAdminPorCampos(emp.usuario, emp.puesto)) return;
         var foundRow = -1;
         for (var i = 1; i < eData.length; i++) {
           if (String(eData[i][0]) === String(emp.id)) { foundRow = i + 1; break; }
@@ -3021,7 +3066,8 @@ function doPost(e) {
                 contracts: contractsParaSheets,
                 payments: payments,
                 employees: employees,
-                certificados: certificados
+                certificados: certificados,
+                auth: _authCred
             };
 
             try {
