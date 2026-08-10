@@ -2719,15 +2719,15 @@ function doPost(e) {
             + '-- Servicios Funerarios Huerta · Sistema de Previsión';
         } else if (payload.tipo === 'certificado_emitido') {
           asunto = '🏅 Certificado de liquidación emitido — ' + (d.numCert||'') + ' · Huerta';
-          cuerpo = 'Hola Admin,\n\nSe ha emitido un Certificado de Liquidación Total:\n\n'
-            + '  N° Certificado: ' + (d.numCert||'-') + '\n'
-            + '  Folio contrato: ' + (d.folio||'-') + '\n'
-            + '  Titular:        ' + (d.titular||'-') + '\n'
-            + '  Paquete:        ' + (d.paquete||'-') + '\n'
-            + '  Monto total:    $' + (Number(d.precioTotal)||0).toLocaleString('es-MX') + ' M.N.\n'
-            + '  Fecha emisión:  ' + (d.fechaEmision||'-') + '\n'
-            + '  Emitido por:    ' + asesor + '\n\n'
-            + 'Guarda este número de certificado en tus registros.\n\n'
+          cuerpo = 'Hola Admin,\\n\\nSe ha emitido un Certificado de Liquidación Total:\\n\\n'
+            + '  N° Certificado: ' + (d.numCert||'-') + '\\n'
+            + '  Folio contrato: ' + (d.folio||'-') + '\\n'
+            + '  Titular:        ' + (d.titular||'-') + '\\n'
+            + '  Paquete:        ' + (d.paquete||'-') + '\\n'
+            + '  Monto total:    $' + (Number(d.precioTotal)||0).toLocaleString('es-MX') + ' M.N.\\n'
+            + '  Fecha emisión:  ' + (d.fechaEmision||'-') + '\\n'
+            + '  Emitido por:    ' + asesor + '\\n\\n'
+            + 'Guarda este número de certificado en tus registros.\\n\\n'
             + '-- Servicios Funerarios Huerta · Sistema de Previsión';
         } else if (payload.tipo === 'nuevo_abono') {
           asunto = '💰 Abono registrado — ' + (d.folio||'') + ' (' + (d.titular||'') + ')';
