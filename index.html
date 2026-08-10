@@ -700,6 +700,20 @@
                     </div>
                 </div>
 
+                <!-- Seguridad: cerrar todas las sesiones -->
+                <div class="bg-slate-950 border border-red-900/30 rounded-xl p-5 space-y-3">
+                    <div class="flex items-start gap-3">
+                        <i data-lucide="shield-alert" class="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <h4 class="font-semibold text-red-300 text-sm">Cerrar todas las sesiones</h4>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">Fuerza a que <b>todos los equipos</b> (incluido este) pidan iniciar sesión de nuevo en su próxima sincronización. Úsalo después de un cambio de seguridad importante, o si sospechas que alguien más tiene acceso.</p>
+                        </div>
+                    </div>
+                    <button onclick="cerrarTodasLasSesiones()" class="bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 text-red-300 text-xs font-semibold px-4 py-2 rounded-lg">
+                        Cerrar todas las sesiones
+                    </button>
+                </div>
+
                 <!-- Respaldo de Firmas -->
                 <div class="bg-slate-950 border border-emerald-800/30 rounded-xl p-5 space-y-3">
                     <div class="flex items-start gap-3">
@@ -2467,7 +2481,8 @@ function doGet(e) {
     var employeesSheet = ss.getSheetByName("EMPLEADOS");
     var pagosMPSheet   = ss.getSheetByName("PAGOS_MP");
 
-    var response = { result: "success", contracts: [], payments: [], employees: [], certificados: [], dispositivos: [], pagosMP: [] };
+    var response = { result: "success", contracts: [], payments: [], employees: [], certificados: [], dispositivos: [], pagosMP: [],
+      sessionEpoch: PropertiesService.getScriptProperties().getProperty('SESSION_EPOCH') || '0' };
 
     if (contractsSheet) {
       var data = contractsSheet.getDataRange().getValues();
@@ -2799,6 +2814,21 @@ function doPost(e) {
       }
     }
 
+    // ── ADMIN: CERRAR TODAS LAS SESIONES ──
+    // Cambia una marca (SESSION_EPOCH) que todos los dispositivos revisan en cada
+    // sincronización — si no coincide con la que tenían guardada, se cierran solos y piden
+    // volver a iniciar sesión. Útil para forzar que todos tomen credenciales nuevas (como
+    // después de este cambio de seguridad) sin tener que ir equipo por equipo.
+    if (payload.accion === 'cerrarTodasLasSesiones') {
+      if (!verificarAdmin(payload.adminAuth)) {
+        return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'No autorizado.' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      PropertiesService.getScriptProperties().setProperty('SESSION_EPOCH', String(Date.now()));
+      return ContentService.createTextOutput(JSON.stringify({ ok: true }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     // ── VALIDAR ACCESO COMPARTIDO (login desde app de Previsiones) ──
     if (payload.accion === 'validarAcceso') {
       try {
@@ -3098,6 +3128,22 @@ function doPost(e) {
                 }
 
                 const remoteData = await getResponse.json();
+
+                // ─── Revisar si el admin cerró todas las sesiones ───
+                // Si la marca del servidor cambió respecto a la que tenía este dispositivo,
+                // significa que un admin pidió cerrar todas las sesiones — este equipo se
+                // desloguea solo y pide iniciar sesión de nuevo (así toma credenciales
+                // frescas). La primera vez que un dispositivo ve la marca solo la guarda,
+                // sin cerrar sesión.
+                if (remoteData.sessionEpoch) {
+                    const epochLocal = localStorage.getItem('huerta_session_epoch');
+                    if (epochLocal && String(epochLocal) !== String(remoteData.sessionEpoch)) {
+                        showToast('Un administrador cerró todas las sesiones. Vuelve a iniciar sesión.', 'error');
+                        handleLogout();
+                        return;
+                    }
+                    localStorage.setItem('huerta_session_epoch', String(remoteData.sessionEpoch));
+                }
 
                 if (remoteData.result === "success") {
                     // Integrar contratos remotos
@@ -4218,6 +4264,28 @@ function doPost(e) {
                 cargarPagosMP();
             } catch (e) {
                 showToast('No se pudo descartar el pago: ' + e.message, 'error');
+            }
+        }
+
+        // Cierra la sesión de TODOS los dispositivos (incluido este) — cada uno se desloguea
+        // solo la próxima vez que sincronice. Útil para forzar que todos tomen credenciales
+        // nuevas sin tener que ir equipo por equipo.
+        async function cerrarTodasLasSesiones() {
+            if (!googleScriptUrl) return;
+            if (!confirm('¿Cerrar la sesión de TODOS los equipos (incluido este)? Cada uno tendrá que volver a iniciar sesión la próxima vez que sincronice o recargue.')) return;
+            const adminAuth = pedirAuthAdmin();
+            if (!adminAuth) return;
+            try {
+                const res = await fetch(googleScriptUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'cerrarTodasLasSesiones', adminAuth: adminAuth })
+                });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || 'Error desconocido');
+                showToast('✅ Listo. Todos los equipos se desloguearán en su próxima sincronización.', 'success');
+            } catch (e) {
+                showToast('No se pudo cerrar las sesiones: ' + e.message, 'error');
             }
         }
 
