@@ -92,7 +92,7 @@
     <div id="login-screen" class="fixed inset-0 z-[200] bg-slate-950 items-center justify-center p-4" style="display:flex">
         <div class="bg-slate-900 border border-slate-800 p-8 rounded-2xl w-full max-w-sm shadow-2xl relative">
             <div class="flex flex-col items-center mb-6">
-                <div id="login-logo-fh" class="bg-amber-600/10 p-3 rounded-full border border-amber-500/30 mb-2 cursor-default select-none" onclick="loginLogoClick()">
+                <div id="login-logo-fh" class="bg-amber-600/10 p-3 rounded-full border border-amber-500/30 mb-2 cursor-default select-none">
                     <span class="font-serif font-black text-2xl text-amber-500">FH</span>
                 </div>
                 <h2 class="text-xl font-serif font-bold text-slate-100">Servicios Funerarios Huerta</h2>
@@ -1798,41 +1798,13 @@
             window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
         }
 
-        // --- ACCESO DE EMERGENCIA SECRETO (7 clicks en logo FH del login) ---
-        let _loginLogoClicks = 0, _loginLogoTimer = null;
-        function loginLogoClick() {
-            _loginLogoClicks++;
-            clearTimeout(_loginLogoTimer);
-            _loginLogoTimer = setTimeout(() => { _loginLogoClicks = 0; }, 3000);
-            if (_loginLogoClicks >= 7) {
-                _loginLogoClicks = 0;
-                const pw = prompt('Clave de restauración:');
-                if (pw === 'huerta2024') {
-                    emergencyResetAdmin();
-                }
-            }
-        }
-
-        // --- RESTABLECIMIENTO DE EMERGENCIA DE CREDENCIALES ---
-        function emergencyResetAdmin() {
-            let emps = JSON.parse(localStorage.getItem('huerta_employees')) || [];
-            // Limpiar cualquier residuo de cuenta administrador vieja
-            emps = emps.filter(e => e.usuario !== "admin" && e.id !== "admin-default");
-            emps.unshift({
-                id: "admin-default",
-                nombre: "Administrador General",
-                puesto: "Director General",
-                telefono: "2281845114",
-                estatus: "Activo",
-                usuario: "admin",
-                contrasena: "1234"
-            });
-            localStorage.setItem('huerta_employees', JSON.stringify(emps));
-            localStorage.removeItem('huerta_session'); // Limpiar sesión activa rota
-            
-            alert("Se han restablecido los accesos de administrador:\n\nUsuario: admin\nContraseña: 1234\n\nLa página se recargará ahora.");
-            window.location.reload();
-        }
+        // Se quitó el "acceso de emergencia" que reseteaba admin/1234 con 7 clics en el logo
+        // + una clave fija ("huerta2024"): cualquier valor fijo dentro del código JavaScript
+        // del navegador es visible para quien abra las herramientas de desarrollador, así que
+        // nunca fue realmente secreto — permitía a cualquier visitante tomar el control de
+        // administrador. Si alguna vez quedas sin acceso, corrige directamente la fila del
+        // administrador en la hoja EMPLEADOS de Google Sheets (solo tu cuenta de Google tiene
+        // acceso a esa hoja) y vuelve a sincronizar.
 
         // URL del backend: usa la misma URL de Apps Script configurada en Sincronización.
         // Si no está configurada, el login cae al respaldo local (localStorage).
@@ -1899,10 +1871,10 @@
             const colaborador = await intentarAccesoCompartido({ pin });
             if (colaborador) { entrarConColaborador(colaborador); LOGIN_PIN = ''; updateLoginPinDots(); return; }
 
-            // 2. PIN maestro de emergencia (sin nube)
-            if (pin === '0000') { entrarConColaborador({ id: 'ADMIN', nombre: 'Administrador', puesto: 'Administrador General' }); LOGIN_PIN = ''; updateLoginPinDots(); return; }
-
-            // 3. Respaldo: colaboradores locales con PIN propio (compatibilidad con datos previos)
+            // 2. Respaldo sin conexión: solo colaboradores que YA iniciaron sesión antes en
+            // ESTE equipo (su PIN quedó en el almacenamiento local de este dispositivo, nunca
+            // se recibe de la nube). No existe ningún PIN maestro — quitado por seguridad: un
+            // código fijo en el código fuente del navegador nunca es realmente secreto.
             let emps = [];
             try { emps = JSON.parse(localStorage.getItem('huerta_employees')) || []; } catch (ex) { emps = []; }
             const foundLocal = emps.find(function (emp) { return (String(emp.pin || '') === pin || String(emp.contrasena || '') === pin) && emp.estatus === 'Activo'; });
@@ -2509,7 +2481,14 @@ function doGet(e) {
         var headers3 = data3[0];
         for (var i = 1; i < data3.length; i++) {
           var row3 = {};
-          for (var j = 0; j < headers3.length; j++) { row3[headers3[j]] = data3[i][j]; }
+          for (var j = 0; j < headers3.length; j++) {
+            // CONTRASENA y PIN nunca se entregan por esta vía: este endpoint no tiene
+            // autenticación, así que mandarlas expondría las credenciales de todo el
+            // personal a cualquiera que tenga la URL. El login real siempre pasa por la
+            // acción validarAcceso (doPost), que sí las compara del lado del servidor.
+            if (headers3[j] === "CONTRASENA" || headers3[j] === "PIN") continue;
+            row3[headers3[j]] = data3[i][j];
+          }
           response.employees.push(row3);
         }
       }
