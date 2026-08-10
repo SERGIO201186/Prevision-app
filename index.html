@@ -2535,6 +2535,34 @@ function doGet(e) {
   return output;
 }
 
+// Verifica que quien hace la llamada de verdad tenga credenciales de administrador
+// ACTIVAS en la hoja EMPLEADOS — nunca basta con conocer la URL del Web App. Se usa
+// para proteger las acciones sensibles (autorizar/revocar equipos, confirmar/descartar
+// pagos de Mercado Pago). auth puede traer { pin } o { usuario, contrasena }.
+function verificarAdmin(auth) {
+  if (!auth) return false;
+  var eSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("EMPLEADOS");
+  if (!eSheet) return false;
+  var rows = eSheet.getDataRange().getValues();
+  // Columnas: ID(0) NOMBRE(1) PUESTO(2) TELEFONO(3) ESTATUS(4) USUARIO(5) CONTRASENA(6) PIN(7)
+  for (var i = 1; i < rows.length; i++) {
+    var row = rows[i];
+    if (String(row[4] || '').toLowerCase() !== 'activo') continue;
+    var coincide = false;
+    if (auth.pin) {
+      var pinSheet = String(row[7] || row[6] || '');
+      coincide = (pinSheet === String(auth.pin));
+    } else if (auth.usuario && auth.contrasena) {
+      coincide = (String(row[5]) === String(auth.usuario) && String(row[6]) === String(auth.contrasena));
+    }
+    if (!coincide) continue;
+    var usuario = String(row[5] || '').toLowerCase();
+    var puesto = String(row[2] || '').toLowerCase();
+    return usuario === 'admin' || puesto.indexOf('director') !== -1 || puesto.indexOf('administrador general') !== -1;
+  }
+  return false;
+}
+
 function doPost(e) {
   var output;
   try {
@@ -2655,6 +2683,10 @@ function doPost(e) {
 
     // ── ADMIN: AUTORIZAR / REVOCAR UN DISPOSITIVO (desde la app principal) ──
     if (payload.accion === 'actualizarDispositivo' && payload.deviceId && payload.estado) {
+      if (!verificarAdmin(payload.adminAuth)) {
+        return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'No autorizado.' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
       try {
         var d2Rows = dispositivosSheet.getDataRange().getValues();
         var d2Found = -1;
@@ -2675,6 +2707,10 @@ function doPost(e) {
 
     // ── ADMIN: CONFIRMAR UN PAGO DE MERCADO PAGO (lo convierte en abono real) ──
     if (payload.accion === 'confirmarPagoMP' && payload.idPagoMP) {
+      if (!verificarAdmin(payload.adminAuth)) {
+        return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'No autorizado.' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
       try {
         var cmRows = pagosMPSheet.getDataRange().getValues();
         var cmFound = -1;
@@ -2700,6 +2736,10 @@ function doPost(e) {
 
     // ── ADMIN: DESCARTAR UN PAGO DE MERCADO PAGO (no genera abono) ──
     if (payload.accion === 'descartarPagoMP' && payload.idPagoMP) {
+      if (!verificarAdmin(payload.adminAuth)) {
+        return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'No autorizado.' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
       try {
         var dmRows = pagosMPSheet.getDataRange().getValues();
         var dmFound = -1;
@@ -4014,13 +4054,24 @@ function doPost(e) {
             }).join('');
         }
 
+        // Pide el PIN de administrador antes de una acción sensible — el servidor lo vuelve
+        // a verificar contra EMPLEADOS, así que no basta con conocer la URL de Apps Script
+        // para autorizar equipos o confirmar pagos. Devuelve null si se cancela.
+        function pedirAuthAdmin() {
+            const pin = prompt('Ingresa tu PIN de administrador para confirmar esta acción:');
+            if (!pin) return null;
+            return { pin: pin };
+        }
+
         async function actualizarEstadoDispositivo(deviceId, nuevoEstado) {
             if (!googleScriptUrl) return;
+            const adminAuth = pedirAuthAdmin();
+            if (!adminAuth) return;
             try {
                 const res = await fetch(googleScriptUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ accion: 'actualizarDispositivo', deviceId: deviceId, estado: nuevoEstado })
+                    body: JSON.stringify({ accion: 'actualizarDispositivo', deviceId: deviceId, estado: nuevoEstado, adminAuth: adminAuth })
                 });
                 const data = await res.json();
                 if (!data.ok) throw new Error(data.error || 'Error desconocido');
@@ -4069,11 +4120,13 @@ function doPost(e) {
 
         async function confirmarPagoMP(idPagoMP) {
             if (!googleScriptUrl) return;
+            const adminAuth = pedirAuthAdmin();
+            if (!adminAuth) return;
             try {
                 const res = await fetch(googleScriptUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ accion: 'confirmarPagoMP', idPagoMP: idPagoMP })
+                    body: JSON.stringify({ accion: 'confirmarPagoMP', idPagoMP: idPagoMP, adminAuth: adminAuth })
                 });
                 const data = await res.json();
                 if (!data.ok) throw new Error(data.error || 'Error desconocido');
@@ -4087,11 +4140,13 @@ function doPost(e) {
         async function descartarPagoMP(idPagoMP) {
             if (!googleScriptUrl) return;
             if (!confirm('¿Descartar este pago? No se registrará como abono.')) return;
+            const adminAuth = pedirAuthAdmin();
+            if (!adminAuth) return;
             try {
                 const res = await fetch(googleScriptUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ accion: 'descartarPagoMP', idPagoMP: idPagoMP })
+                    body: JSON.stringify({ accion: 'descartarPagoMP', idPagoMP: idPagoMP, adminAuth: adminAuth })
                 });
                 const data = await res.json();
                 if (!data.ok) throw new Error(data.error || 'Error desconocido');
