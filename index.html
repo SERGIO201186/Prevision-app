@@ -1039,7 +1039,7 @@
     <div id="modal-employee" class="fixed inset-0 bg-slate-950/90 items-center justify-center p-4 z-50" style="display:none">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
             <div class="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
-                <h3 class="text-base font-serif font-bold text-slate-100 flex items-center gap-2">
+                <h3 id="modal-employee-title" class="text-base font-serif font-bold text-slate-100 flex items-center gap-2">
                     <i data-lucide="users" class="text-amber-500"></i> Registrar Asesor / Colaborador
                 </h3>
                 <button onclick="closeEmployeeModal()" class="text-slate-400 hover:text-white p-1"><i data-lucide="x"></i></button>
@@ -1068,7 +1068,7 @@
                             <input type="text" id="emp-usuario" required placeholder="Ej. pedro1" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 focus:outline-none">
                         </div>
                         <div>
-                            <label class="block text-[10px] text-slate-400 mb-1">Contraseña *</label>
+                            <label id="emp-contrasena-label" class="block text-[10px] text-slate-400 mb-1">Contraseña *</label>
                             <input type="password" id="emp-contrasena" required autocomplete="new-password" placeholder="Contraseña" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 focus:outline-none">
                         </div>
                     </div>
@@ -1077,7 +1077,7 @@
                     <button type="button" onclick="closeEmployeeModal()" class="bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 text-xs font-semibold px-4 py-2 rounded-lg">
                         Cancelar
                     </button>
-                    <button type="submit" class="bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold text-xs px-5 py-2 rounded-lg shadow-lg">
+                    <button type="submit" id="emp-submit-btn" class="bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold text-xs px-5 py-2 rounded-lg shadow-lg">
                         Confirmar Colaborador
                     </button>
                 </div>
@@ -1459,6 +1459,9 @@
         let pendingSyncClients = JSON.parse(localStorage.getItem('huerta_pending_clients')) || [];
         let pendingSyncPayments = JSON.parse(localStorage.getItem('huerta_pending_payments')) || [];
         let pendingSyncEmployees = JSON.parse(localStorage.getItem('huerta_pending_employees')) || [];
+
+        // Id del colaborador que se está editando en el modal (null = se está creando uno nuevo).
+        let _editingEmployeeId = null;
 
         let googleScriptUrl = localStorage.getItem('huerta_google_url') || "";
         let adminEmail = localStorage.getItem('huerta_admin_email') || "";
@@ -4698,6 +4701,7 @@ function doPost(e) {
                     </td>
                     <td class="p-3 text-center">
                         ${e.id === 'admin-default' ? '<span class="text-slate-500 text-[10px]">Protegido</span>' : `
+                            <button onclick="editEmployeeOpen('${e.id}')" class="text-emerald-500 hover:text-emerald-400 text-[10px] font-semibold mr-2">Editar</button>
                             <button onclick="toggleEmployeeStatus('${e.id}')" class="text-amber-500 hover:text-amber-400 text-[10px] font-semibold mr-2">Estatus</button>
                             <button onclick="deleteEmployee('${e.id}')" class="text-red-500 hover:text-red-400 text-[10px] font-semibold">Eliminar</button>
                         `}
@@ -4781,10 +4785,44 @@ function doPost(e) {
         }
 
         function openEmployeeModal() {
+            _editingEmployeeId = null;
+            document.getElementById('modal-employee-title').innerHTML = '<i data-lucide="users" class="text-amber-500"></i> Registrar Asesor / Colaborador';
+            document.getElementById('emp-submit-btn').innerText = 'Confirmar Colaborador';
+            document.getElementById('emp-contrasena-label').innerText = 'Contraseña *';
+            document.getElementById('emp-contrasena').required = true;
+            document.getElementById('emp-contrasena').placeholder = 'Contraseña';
+            document.getElementById('emp-nombre').value = '';
+            document.getElementById('emp-puesto').value = '';
+            document.getElementById('emp-telefono').value = '';
+            document.getElementById('emp-usuario').value = '';
+            document.getElementById('emp-contrasena').value = '';
             document.getElementById('modal-employee').style.display = 'flex';
+            safeCreateIcons();
+        }
+
+        // Abre el mismo modal pero precargado con los datos del colaborador para editarlo —
+        // así el cambio queda en la app y se sincroniza bien, en vez de editar la hoja a mano
+        // (lo cual se pierde en cuanto la app vuelve a sincronizar con los datos viejos).
+        function editEmployeeOpen(id) {
+            const emp = employees.find(e => e.id === id);
+            if (!emp) return;
+            _editingEmployeeId = id;
+            document.getElementById('modal-employee-title').innerHTML = '<i data-lucide="users" class="text-amber-500"></i> Editar Asesor / Colaborador';
+            document.getElementById('emp-submit-btn').innerText = 'Guardar Cambios';
+            document.getElementById('emp-contrasena-label').innerText = 'Contraseña (dejar en blanco para no cambiarla)';
+            document.getElementById('emp-contrasena').required = false;
+            document.getElementById('emp-contrasena').placeholder = 'Dejar en blanco para no cambiarla';
+            document.getElementById('emp-nombre').value = emp.nombre || '';
+            document.getElementById('emp-puesto').value = emp.puesto || '';
+            document.getElementById('emp-telefono').value = emp.telefono || '';
+            document.getElementById('emp-usuario').value = emp.usuario || '';
+            document.getElementById('emp-contrasena').value = '';
+            document.getElementById('modal-employee').style.display = 'flex';
+            safeCreateIcons();
         }
 
         function closeEmployeeModal() {
+            _editingEmployeeId = null;
             document.getElementById('modal-employee').style.display = 'none';
         }
 
@@ -5119,32 +5157,42 @@ function doPost(e) {
 
         function saveEmployee(e) {
             e.preventDefault();
-            const newEmp = {
-                id: `emp-${Date.now()}`,
-                nombre: document.getElementById('emp-nombre').value,
-                puesto: document.getElementById('emp-puesto').value,
-                telefono: document.getElementById('emp-telefono').value,
-                estatus: "Activo",
-                usuario: document.getElementById('emp-usuario').value,
-                contrasena: document.getElementById('emp-contrasena').value
-            };
-            employees.push(newEmp);
-            localStorage.setItem('huerta_employees', JSON.stringify(employees));
+            const nombre = document.getElementById('emp-nombre').value;
+            const puesto = document.getElementById('emp-puesto').value;
+            const telefono = document.getElementById('emp-telefono').value;
+            const usuario = document.getElementById('emp-usuario').value;
+            const contrasenaInput = document.getElementById('emp-contrasena').value;
+            let empGuardado;
 
-            // Marcar como pendiente de sincronización
-            pendingSyncEmployees.push(newEmp.id);
+            if (_editingEmployeeId) {
+                // Editar: se conserva el id y el estatus; la contraseña solo se cambia si se
+                // escribió una nueva (en blanco = se queda con la que ya tenía).
+                employees = employees.map(emp => {
+                    if (emp.id !== _editingEmployeeId) return emp;
+                    empGuardado = { ...emp, nombre, puesto, telefono, usuario, contrasena: contrasenaInput ? contrasenaInput : emp.contrasena };
+                    return empGuardado;
+                });
+                if (!pendingSyncEmployees.includes(_editingEmployeeId)) pendingSyncEmployees.push(_editingEmployeeId);
+            } else {
+                empGuardado = {
+                    id: `emp-${Date.now()}`,
+                    nombre, puesto, telefono, usuario,
+                    estatus: "Activo",
+                    contrasena: contrasenaInput
+                };
+                employees.push(empGuardado);
+                pendingSyncEmployees.push(empGuardado.id);
+            }
+
+            localStorage.setItem('huerta_employees', JSON.stringify(employees));
             localStorage.setItem('huerta_pending_employees', JSON.stringify(pendingSyncEmployees));
             try { updatePendingBadge(); } catch(e) {}
 
+            const fueEdicion = !!_editingEmployeeId;
             closeEmployeeModal();
             renderEmployees();
             populateEmployeeSelects();
-            document.getElementById('emp-nombre').value = '';
-            document.getElementById('emp-puesto').value = '';
-            document.getElementById('emp-telefono').value = '';
-            document.getElementById('emp-usuario').value = '';
-            document.getElementById('emp-contrasena').value = '';
-            showToast(`Colaborador ${newEmp.nombre} registrado con éxito.`);
+            showToast(fueEdicion ? `Colaborador ${empGuardado.nombre} actualizado con éxito.` : `Colaborador ${empGuardado.nombre} registrado con éxito.`);
         }
 
         // --- CALIBRACIÓN DE IMPRESIÓN OFICIAL SINCRO CON LA CAPTURA ---
