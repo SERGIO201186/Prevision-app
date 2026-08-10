@@ -4576,7 +4576,7 @@ function doPost(e) {
                         '<button onclick="openClientHistory(\'' + c.folio + '\')" class="bg-slate-900 border border-emerald-700/40 hover:bg-emerald-950/30 text-emerald-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="clock" class="h-3.5 w-3.5"></i> Historial</button>' +
                         '<button onclick="openNewSignatureBox(\'' + c.folio + '\')" class="bg-slate-900 border border-slate-700 hover:text-white text-slate-400 text-xs px-3 py-2 rounded">Firma</button>' +
                         '<button onclick="openTiendaPaquete(\'' + c.folio + '\')" class="bg-slate-900 border border-emerald-800/50 hover:border-emerald-500 text-emerald-500 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="shopping-bag" class="h-3.5 w-3.5"></i> Tienda</button>' +
-                        (status !== 'liquidado' ? '<button onclick="changeContractStatus(\'' + c.folio + '\')" class="admin-only bg-slate-900 border border-slate-700 hover:border-amber-500 text-slate-400 hover:text-amber-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="settings-2" class="h-3.5 w-3.5"></i> Estatus</button>' : '') +
+                        '<button onclick="changeContractStatus(\'' + c.folio + '\')" class="admin-only bg-slate-900 border border-slate-700 hover:border-amber-500 text-slate-400 hover:text-amber-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="settings-2" class="h-3.5 w-3.5"></i> Estatus</button>' +
                     '</div>' +
                 '</div>';
             }).join('');
