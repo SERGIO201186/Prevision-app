@@ -3,7 +3,7 @@
 // Archivo separado requerido por GitHub Pages (no se permiten blob: URLs)
 // ═══════════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'huerta-v7-3';
+const CACHE_NAME = 'huerta-v7-4';
 
 self.addEventListener('install', function(event) {
     event.waitUntil(
@@ -67,18 +67,17 @@ self.addEventListener('fetch', function(event) {
         return;
     }
 
-    // App principal — cache primero, actualizar en background
+    // App principal — red primero (siempre la versión más reciente si hay conexión),
+    // caché como respaldo solo si no hay internet.
     event.respondWith(
-        caches.match(event.request).then(function(cached) {
-            const networkFetch = fetch(event.request).then(function(response) {
-                if (response && response.ok) {
-                    const clone = response.clone();
-                    caches.open(CACHE_NAME).then(function(c) { c.put(event.request, clone); });
-                }
-                return response;
-            }).catch(function() { return null; });
-
-            return cached || networkFetch;
+        fetch(event.request).then(function(response) {
+            if (response && response.ok) {
+                const clone = response.clone();
+                caches.open(CACHE_NAME).then(function(c) { c.put(event.request, clone); });
+            }
+            return response;
+        }).catch(function() {
+            return caches.match(event.request);
         })
     );
 });
