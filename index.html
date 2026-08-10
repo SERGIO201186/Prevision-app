@@ -4684,7 +4684,7 @@ function doPost(e) {
         // --- CONTROL DE EMPLEADOS (ASESORES) ---
         function renderEmployees() {
             const tbody = document.getElementById('employees-table-tbody');
-            tbody.innerHTML = employees.map(e => `
+            tbody.innerHTML = employees.filter(e => e.estatus !== "Eliminado").map(e => `
                 <tr class="border-b border-slate-900 text-xs">
                     <td class="p-3 font-bold">${e.nombre}</td>
                     <td class="p-3">${e.puesto}</td>
@@ -4721,13 +4721,12 @@ function doPost(e) {
         }
 
         function deleteEmployee(id) {
-            employees = employees.map(e => {
-                if (e.id === id) {
-                    return { ...e, estatus: "Eliminado" };
-                }
-                return e;
-            }).filter(e => e.estatus !== "Eliminado");
-            
+            // Se marca como "Eliminado" y se mantiene en el arreglo (sin filtrarlo aquí)
+            // para que la próxima sincronización lo suba así al servidor y este sí borre la
+            // fila real en la hoja EMPLEADOS. Antes se filtraba de inmediato, así que ese
+            // cambio nunca llegaba a subirse y el empleado se quedaba en la hoja para siempre.
+            employees = employees.map(e => e.id === id ? { ...e, estatus: "Eliminado" } : e);
+
             localStorage.setItem('huerta_employees', JSON.stringify(employees));
             renderEmployees();
             populateEmployeeSelects();
