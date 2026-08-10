@@ -2343,7 +2343,10 @@ function doGet(e) {
           var cpRows = contratosPagarSheet.getDataRange().getValues();
           for (var cpi = 1; cpi < cpRows.length; cpi++) {
             if (String(cpRows[cpi][0]) === String(folioPagar)) {
-              contratoEncontrado = { titular: cpRows[cpi][1], paquete: cpRows[cpi][6], precioTotal: Number(cpRows[cpi][7]) || 0 };
+              contratoEncontrado = {
+                titular: cpRows[cpi][1], paquete: cpRows[cpi][6], precioTotal: Number(cpRows[cpi][7]) || 0,
+                enganche: Number(cpRows[cpi][8]) || 0, cuotas: Number(cpRows[cpi][10]) || 0, frecuencia: cpRows[cpi][11]
+              };
               break;
             }
           }
@@ -2362,31 +2365,61 @@ function doGet(e) {
           if (saldoPagar <= 0) {
             htmlPagar = '<p style="font-family:sans-serif;padding:2rem;">✅ El folio ' + folioPagar + ' ya está liquidado. No hay ningún saldo pendiente por pagar.</p>';
           } else {
-            var mpTokenPagar = PropertiesService.getScriptProperties().getProperty('MP_ACCESS_TOKEN');
-            if (!mpTokenPagar) {
-              htmlPagar = '<p style="font-family:sans-serif;padding:2rem;">El pago en línea no está disponible todavía. Contacta al administrador.</p>';
+            var cuotaPeriodicaPagar = contratoEncontrado.cuotas > 0
+              ? Math.round((contratoEncontrado.precioTotal - contratoEncontrado.enganche) / contratoEncontrado.cuotas)
+              : saldoPagar;
+            if (cuotaPeriodicaPagar > saldoPagar) cuotaPeriodicaPagar = saldoPagar;
+            if (cuotaPeriodicaPagar <= 0) cuotaPeriodicaPagar = saldoPagar;
+
+            var montoParam = e.parameter.monto ? Number(e.parameter.monto) : 0;
+
+            if (!montoParam || montoParam <= 0) {
+              // ── Paso 1: el cliente confirma o ajusta el monto antes de ir a Mercado Pago ──
+              var periodicidadTexto = contratoEncontrado.frecuencia === 'quincenal' ? 'quincenal' : 'mensual';
+              htmlPagar = '<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>'
+                + '<body style="font-family:sans-serif;max-width:420px;margin:2rem auto;padding:0 1rem;color:#222;">'
+                + '<h2 style="margin-bottom:0;">Previsión Huerta</h2>'
+                + '<p style="color:#666;margin-top:4px;">Folio ' + folioPagar + ' — ' + (contratoEncontrado.titular || '') + '</p>'
+                + '<p style="font-size:14px;color:#666;">Cuota ' + periodicidadTexto + ' pactada: <b>$' + cuotaPeriodicaPagar.toLocaleString('es-MX') + ' M.N.</b><br>'
+                + 'Saldo total pendiente: $' + saldoPagar.toLocaleString('es-MX') + ' M.N.</p>'
+                + '<form method="get" action="' + ScriptApp.getService().getUrl() + '">'
+                + '<input type="hidden" name="modo" value="pagar">'
+                + '<input type="hidden" name="folio" value="' + folioPagar + '">'
+                + '<label style="display:block;margin:1rem 0 0.3rem;font-weight:bold;">Monto a pagar</label>'
+                + '<input type="number" name="monto" value="' + cuotaPeriodicaPagar + '" min="1" max="' + saldoPagar + '" step="1" '
+                + 'style="width:100%;box-sizing:border-box;font-size:1.2rem;padding:0.6rem;border:1px solid #ccc;border-radius:8px;">'
+                + '<p style="font-size:12px;color:#999;">Puedes dejar la cuota pactada o escribir otro monto (hasta el saldo total pendiente).</p>'
+                + '<button type="submit" style="width:100%;margin-top:0.5rem;padding:0.8rem;background:#00b1ea;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:bold;">Continuar al pago</button>'
+                + '</form></body></html>';
             } else {
-              var webAppUrl = ScriptApp.getService().getUrl();
-              var prefBody = {
-                items: [{ title: 'Previsión Huerta — Folio ' + folioPagar, quantity: 1, currency_id: 'MXN', unit_price: saldoPagar }],
-                external_reference: folioPagar,
-                back_urls: { success: webAppUrl, failure: webAppUrl, pending: webAppUrl },
-                auto_return: 'approved'
-              };
-              var prefRes = UrlFetchApp.fetch('https://api.mercadopago.com/checkout/preferences', {
-                method: 'post', contentType: 'application/json',
-                headers: { Authorization: 'Bearer ' + mpTokenPagar },
-                payload: JSON.stringify(prefBody), muteHttpExceptions: true
-              });
-              var prefData = JSON.parse(prefRes.getContentText());
-              var initPoint = prefData.init_point || prefData.sandbox_init_point;
-              if (!initPoint) {
-                htmlPagar = '<p style="font-family:sans-serif;padding:2rem;">No se pudo generar el link de pago. Intenta de nuevo más tarde o contacta al administrador.<br><small>' + (prefData.message || '') + '</small></p>';
+              // ── Paso 2: ya con el monto elegido, genera la preferencia y redirige a Mercado Pago ──
+              if (montoParam > saldoPagar) montoParam = saldoPagar;
+              var mpTokenPagar = PropertiesService.getScriptProperties().getProperty('MP_ACCESS_TOKEN');
+              if (!mpTokenPagar) {
+                htmlPagar = '<p style="font-family:sans-serif;padding:2rem;">El pago en línea no está disponible todavía. Contacta al administrador.</p>';
               } else {
-                htmlPagar = '<html><head><meta http-equiv="refresh" content="0;url=' + initPoint + '"></head>'
-                  + '<body style="font-family:sans-serif;padding:2rem;">Redirigiendo al pago de $' + saldoPagar.toLocaleString('es-MX') + ' M.N. (folio ' + folioPagar + ')…'
-                  + ' Si no avanza automáticamente, <a href="' + initPoint + '">haz clic aquí</a>.'
-                  + '</body></html>';
+                var webAppUrl = ScriptApp.getService().getUrl();
+                var prefBody = {
+                  items: [{ title: 'Previsión Huerta — Folio ' + folioPagar, quantity: 1, currency_id: 'MXN', unit_price: montoParam }],
+                  external_reference: folioPagar,
+                  back_urls: { success: webAppUrl, failure: webAppUrl, pending: webAppUrl },
+                  auto_return: 'approved'
+                };
+                var prefRes = UrlFetchApp.fetch('https://api.mercadopago.com/checkout/preferences', {
+                  method: 'post', contentType: 'application/json',
+                  headers: { Authorization: 'Bearer ' + mpTokenPagar },
+                  payload: JSON.stringify(prefBody), muteHttpExceptions: true
+                });
+                var prefData = JSON.parse(prefRes.getContentText());
+                var initPoint = prefData.init_point || prefData.sandbox_init_point;
+                if (!initPoint) {
+                  htmlPagar = '<p style="font-family:sans-serif;padding:2rem;">No se pudo generar el link de pago. Intenta de nuevo más tarde o contacta al administrador.<br><small>' + (prefData.message || '') + '</small></p>';
+                } else {
+                  htmlPagar = '<html><head><meta http-equiv="refresh" content="0;url=' + initPoint + '"></head>'
+                    + '<body style="font-family:sans-serif;padding:2rem;">Redirigiendo al pago de $' + montoParam.toLocaleString('es-MX') + ' M.N. (folio ' + folioPagar + ')…'
+                    + ' Si no avanza automáticamente, <a href="' + initPoint + '">haz clic aquí</a>.'
+                    + '</body></html>';
+                }
               }
             }
           }
