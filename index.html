@@ -2476,6 +2476,17 @@ function doGet(e) {
       return HtmlService.createHtmlOutput(htmlPagar);
     }
 
+    // ── SINCRONIZACIÓN GENERAL (lectura) — exige credencial real de un empleado activo ──
+    // Antes esta respuesta (todos los contratos, abonos, certificados y equipos) se entregaba
+    // a cualquiera que tuviera la URL, sin pedir nada. Ahora hace falta ?auth= con el PIN o
+    // usuario/contraseña de un empleado activo — igual que ya se exige para escribir datos.
+    var authParam = null;
+    try { authParam = e && e.parameter && e.parameter.auth ? JSON.parse(e.parameter.auth) : null; } catch (authParseErr) { authParam = null; }
+    if (!buscarEmpleadoPorAuth(authParam)) {
+      return ContentService.createTextOutput(JSON.stringify({ result: "error", message: "No autorizado." }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     var contractsSheet = ss.getSheetByName("CONTRATOS");
     var paymentsSheet  = ss.getSheetByName("ABONOS");
     var employeesSheet = ss.getSheetByName("EMPLEADOS");
@@ -3122,7 +3133,7 @@ function doPost(e) {
                 showToast("Datos subidos ✓ — Descargando versión actualizada...", "success");
 
                 // ─── PASO 2: GET — descargar datos actualizados desde la hoja ───
-                const getResponse = await fetch(googleScriptUrl + '?v=' + Date.now());
+                const getResponse = await fetch(googleScriptUrl + '?v=' + Date.now() + '&auth=' + encodeURIComponent(JSON.stringify(_authCred)));
                 if (!getResponse.ok) {
                     throw new Error(`Error al leer la hoja: HTTP ${getResponse.status}`);
                 }
@@ -4128,7 +4139,7 @@ function doPost(e) {
         async function cargarDispositivos() {
             if (!googleScriptUrl) { showToast('Configura primero la URL de Google Apps Script.', 'error'); return; }
             try {
-                const res = await fetch(googleScriptUrl + '?v=' + Date.now());
+                const res = await fetch(googleScriptUrl + '?v=' + Date.now() + '&auth=' + encodeURIComponent(JSON.stringify(_authCred)));
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 const data = await res.json();
                 if (data.result !== 'success') throw new Error(data.message || 'El script reportó un error.');
@@ -4198,7 +4209,7 @@ function doPost(e) {
         async function cargarPagosMP() {
             if (!googleScriptUrl) { showToast('Configura primero la URL de Google Apps Script.', 'error'); return; }
             try {
-                const res = await fetch(googleScriptUrl + '?v=' + Date.now());
+                const res = await fetch(googleScriptUrl + '?v=' + Date.now() + '&auth=' + encodeURIComponent(JSON.stringify(_authCred)));
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 const data = await res.json();
                 if (data.result !== 'success') throw new Error(data.message || 'El script reportó un error.');
