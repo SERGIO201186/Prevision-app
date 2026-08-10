@@ -2328,6 +2328,27 @@ function doGet(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // ── MODO RESULTADO DE PAGO (a donde regresa Mercado Pago después de pagar) ──
+    // NUNCA debe entregar datos de contratos/abonos — es la página a la que el navegador
+    // del CLIENTE (no el administrador) llega después de pagar, así que solo confirma el
+    // resultado sin exponer información de nadie más.
+    if (e && e.parameter && e.parameter.modo === 'pagoResultado') {
+      var estadoPago = e.parameter.estado || 'pendiente';
+      var folioResultado = e.parameter.folio || '';
+      var mensajeResultado = estadoPago === 'exito'
+        ? '✅ ¡Pago recibido! Gracias — en cuanto el administrador lo confirme quedará reflejado en tu plan.'
+        : estadoPago === 'fallo'
+          ? '❌ El pago no se completó. Puedes intentarlo de nuevo con el mismo link que te compartieron.'
+          : '⏳ Tu pago está pendiente de confirmación. Te avisaremos cuando se acredite.';
+      var htmlResultado = '<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head>'
+        + '<body style="font-family:sans-serif;max-width:420px;margin:3rem auto;padding:0 1rem;text-align:center;color:#222;">'
+        + '<h2>Previsión Huerta</h2>'
+        + (folioResultado ? '<p style="color:#666;">Folio ' + folioResultado + '</p>' : '')
+        + '<p style="font-size:1.1rem;">' + mensajeResultado + '</p>'
+        + '</body></html>';
+      return HtmlService.createHtmlOutput(htmlResultado);
+    }
+
     // ── MODO PAGO (link único y permanente por cliente hacia Mercado Pago) ──
     // El link que se comparte con el cliente siempre es el mismo (esta misma URL con su
     // folio), pero CADA VEZ que se abre se genera una preferencia de pago nueva con el saldo
@@ -2399,10 +2420,15 @@ function doGet(e) {
                 htmlPagar = '<p style="font-family:sans-serif;padding:2rem;">El pago en línea no está disponible todavía. Contacta al administrador.</p>';
               } else {
                 var webAppUrl = ScriptApp.getService().getUrl();
+                // IMPORTANTE: las back_urls NUNCA deben apuntar a la URL "pelona" del Web App —
+                // esa entrega sin autenticación el volcado completo de contratos/abonos de TODOS
+                // los clientes (nombres, identificaciones, teléfonos, correos). Deben ir a
+                // modo=pagoResultado, que solo muestra un mensaje de agradecimiento sin datos.
+                var backUrlBase = webAppUrl + '?modo=pagoResultado&folio=' + encodeURIComponent(folioPagar);
                 var prefBody = {
                   items: [{ title: 'Previsión Huerta — Folio ' + folioPagar, quantity: 1, currency_id: 'MXN', unit_price: montoParam }],
                   external_reference: folioPagar,
-                  back_urls: { success: webAppUrl, failure: webAppUrl, pending: webAppUrl },
+                  back_urls: { success: backUrlBase + '&estado=exito', failure: backUrlBase + '&estado=fallo', pending: backUrlBase + '&estado=pendiente' },
                   auto_return: 'approved'
                 };
                 var prefRes = UrlFetchApp.fetch('https://api.mercadopago.com/checkout/preferences', {
