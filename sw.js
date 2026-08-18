@@ -3,7 +3,7 @@
 // Archivo separado requerido por GitHub Pages (no se permiten blob: URLs)
 // ═══════════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'huerta-v7-4';
+const CACHE_NAME = 'huerta-v7-5';
 
 self.addEventListener('install', function(event) {
     event.waitUntil(
@@ -55,7 +55,12 @@ self.addEventListener('fetch', function(event) {
     if (url.includes('cdn.tailwindcss.com') || url.includes('unpkg.com')) {
         event.respondWith(
             fetch(event.request).then(function(response) {
-                if (response && response.ok) {
+                // Estas peticiones cross-origin llegan en modo no-cors, así que el
+                // navegador SIEMPRE las entrega como respuesta "opaca" (status 0,
+                // response.ok === false) aunque el contenido se haya descargado bien.
+                // Si solo revisáramos response.ok nunca se cachearían y Tailwind/Lucide
+                // quedarían sin estilos/iconos en modo offline.
+                if (response && (response.ok || response.type === 'opaque')) {
                     const clone = response.clone();
                     caches.open(CACHE_NAME).then(function(c) { c.put(event.request, clone); });
                 }
