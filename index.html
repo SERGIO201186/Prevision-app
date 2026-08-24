@@ -3093,11 +3093,23 @@ function doPost(e) {
             if (syncBtn) { syncBtn.disabled = true; syncBtn.innerText = '⏳ Sincronizando...'; }
             showToast("Subiendo datos a Google Sheets...", "success");
 
+            // ─── SOLO SUBIR LO REALMENTE PENDIENTE (no todo lo que hay en este dispositivo) ───
+            // Antes se mandaba clients/payments/employees COMPLETOS en cada sincronización.
+            // Como el servidor sobrescribe (o hasta re-crea, si ya lo habían borrado) cada
+            // fila que recibe, un dispositivo con datos desactualizados (p.ej. que llevaba
+            // rato sin poder sincronizar) terminaba pisando en la hoja los cambios más
+            // recientes hechos desde otros equipos — abonos que "desaparecían", empleados
+            // eliminados que volvían a aparecer, etc. Ahora solo se envían los folios/IDs
+            // que este dispositivo marcó como pendientes de subir.
+            const clientsPendientes = clients.filter(function(c) { return pendingSyncClients.includes(c.folio); });
+            const paymentsPendientes = payments.filter(function(p) { return pendingSyncPayments.includes(p.id); });
+            const employeesPendientes = employees.filter(function(e) { return pendingSyncEmployees.includes(e.id); });
+
             // ─── STRIP FIRMAS ANTES DE ENVIAR A SHEETS ───
             // Las firmas base64 pueden superar el límite de 50k chars de una celda de Google Sheets.
             // Solución: nunca subir la firma a Sheets — se guarda solo en localStorage de cada dispositivo.
             // Si un dispositivo nuevo necesita la firma, puede volver a pedirla al titular.
-            const contractsParaSheets = clients.map(function(c) {
+            const contractsParaSheets = clientsPendientes.map(function(c) {
                 const copia = Object.assign({}, c);
                 delete copia.firmaBase64; // quitar firma antes de subir
                 return copia;
@@ -3105,8 +3117,8 @@ function doPost(e) {
 
             const packagePayload = {
                 contracts: contractsParaSheets,
-                payments: payments,
-                employees: employees,
+                payments: paymentsPendientes,
+                employees: employeesPendientes,
                 certificados: certificados,
                 auth: _authCred
             };
@@ -3129,6 +3141,16 @@ function doPost(e) {
                 if (postResult.result !== 'success') {
                     throw new Error(postResult.message || 'El script reportó un error al guardar.');
                 }
+
+                // Ya se subió lo pendiente — vaciar las listas para no volver a mandar
+                // (y por lo tanto volver a pisar en la hoja) lo mismo en cada sincronización
+                // futura, incluso mucho después de que ya no haga falta.
+                pendingSyncClients = [];
+                pendingSyncPayments = [];
+                pendingSyncEmployees = [];
+                localStorage.setItem('huerta_pending_clients', JSON.stringify(pendingSyncClients));
+                localStorage.setItem('huerta_pending_payments', JSON.stringify(pendingSyncPayments));
+                localStorage.setItem('huerta_pending_employees', JSON.stringify(pendingSyncEmployees));
 
                 showToast("Datos subidos ✓ — Descargando versión actualizada...", "success");
 
@@ -4870,6 +4892,10 @@ function doPost(e) {
                 }
                 return e;
             });
+            // Marcar como pendiente de sincronización — de lo contrario la sincronización
+            // (que ahora solo sube lo pendiente, no todo el arreglo) nunca subiría este cambio.
+            if (!pendingSyncEmployees.includes(id)) pendingSyncEmployees.push(id);
+            localStorage.setItem('huerta_pending_employees', JSON.stringify(pendingSyncEmployees));
             localStorage.setItem('huerta_employees', JSON.stringify(employees));
             renderEmployees();
             populateEmployeeSelects();
@@ -4882,6 +4908,12 @@ function doPost(e) {
             // fila real en la hoja EMPLEADOS. Antes se filtraba de inmediato, así que ese
             // cambio nunca llegaba a subirse y el empleado se quedaba en la hoja para siempre.
             employees = employees.map(e => e.id === id ? { ...e, estatus: "Eliminado" } : e);
+
+            // Marcar como pendiente de sincronización — de lo contrario la sincronización
+            // (que ahora solo sube lo pendiente, no todo el arreglo) nunca se enteraría de
+            // que hay que borrar esta fila en la hoja.
+            if (!pendingSyncEmployees.includes(id)) pendingSyncEmployees.push(id);
+            localStorage.setItem('huerta_pending_employees', JSON.stringify(pendingSyncEmployees));
 
             localStorage.setItem('huerta_employees', JSON.stringify(employees));
             renderEmployees();
@@ -5297,6 +5329,13 @@ function doPost(e) {
                 target.estado = 'Activo';
                 clients[clientIdx] = target;
                 localStorage.setItem('huerta_clients', JSON.stringify(clients));
+                // Marcar el contrato como pendiente — de lo contrario la sincronización
+                // (que ahora solo sube lo pendiente, no todo el arreglo) nunca subiría el
+                // saldo actualizado.
+                if (!pendingSyncClients.includes(p.clienteId)) {
+                    pendingSyncClients.push(p.clienteId);
+                    localStorage.setItem('huerta_pending_clients', JSON.stringify(pendingSyncClients));
+                }
             }
 
             payments.splice(payIdx, 1);
