@@ -1480,7 +1480,14 @@
         // Id del colaborador que se está editando en el modal (null = se está creando uno nuevo).
         let _editingEmployeeId = null;
 
-        let googleScriptUrl = localStorage.getItem('huerta_google_url') || "";
+        // Backend compartido (Codigo.gs, un solo libro para ODS y Previsión). El
+        // enlace también se puede pegar a mano en Configuración (eso siempre gana,
+        // vía huerta_google_url), pero eso vive en localStorage: es por
+        // dispositivo/navegador, así que un celular donde nunca se pegó a mano se
+        // quedaba sin enlace y no podía validar el PIN contra la nube. Este valor
+        // por defecto es el mismo backend compartido que ya usa la app de ODS.
+        const DEFAULT_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwYAzofFgAYk9QP7xJBkFfF0JBcxjf_e7DCwvQArfzdy1N6XZaIHre2jmsI6NOUHEPnaw/exec";
+        let googleScriptUrl = localStorage.getItem('huerta_google_url') || DEFAULT_APPS_SCRIPT_URL;
         let adminEmail = localStorage.getItem('huerta_admin_email') || "";
 
         function saveAdminEmail() {
@@ -1832,7 +1839,7 @@
 
         // URL del backend: usa la misma URL de Apps Script configurada en Sincronización.
         // Si no está configurada, el login cae al respaldo local (localStorage).
-        function getAuthUrl() { return localStorage.getItem('huerta_google_url') || ''; }
+        function getAuthUrl() { return localStorage.getItem('huerta_google_url') || DEFAULT_APPS_SCRIPT_URL; }
 
         let LOGIN_PIN = '';
         function switchLoginTab(tab) {
