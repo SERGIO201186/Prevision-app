@@ -36,8 +36,13 @@
         // IMPORTANTE: si algún día se crea una implementación NUEVA en Apps
         // Script (no una "Nueva versión" sobre la existente), la URL cambia y
         // hay que actualizar la constante de abajo con la URL nueva.
+        //
+        // Desde que Previsión y funeraria-huerta comparten un solo backend
+        // (Codigo.gs de funeraria-huerta, un solo libro de Google Sheets), esta
+        // constante debe apuntar a la URL de ESE despliegue compartido — la
+        // misma que se configura en "Sincronización Nube" de ambas apps.
         // ═══════════════════════════════════════════════════════════════
-        var APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbwYAzofFgAYk9QP7xJBkFfF0JBcxjf_e7DCwvQArfzdy1N6XZaIHre2jmsI6NOUHEPnaw/exec';
+        var APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbwYAzofFgAYk9QP7xJBkFfF0JBcxjf_e7DCwvQArfzdy1N6XZaIHre2jmsI6NOUHEPnaw/exec'; // ⚠️ actualiza esto con la URL del backend compartido
 
         var params = new URLSearchParams(window.location.search);
         var folio = params.get('folio');
