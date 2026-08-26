@@ -2374,6 +2374,10 @@
                 if (remoteData.sessionEpoch) {
                     const epochLocal = localStorage.getItem('huerta_session_epoch');
                     if (epochLocal && String(epochLocal) !== String(remoteData.sessionEpoch)) {
+                        // Guardar el epoch NUEVO antes de desloguear: si no se hace esto
+                        // aquí, el próximo intento de sincronizar vuelve a comparar contra
+                        // el epoch viejo y se repite el cierre de sesión para siempre.
+                        localStorage.setItem('huerta_session_epoch', String(remoteData.sessionEpoch));
                         showToast('Un administrador cerró todas las sesiones. Vuelve a iniciar sesión.', 'error');
                         handleLogout();
                         return;
@@ -4908,13 +4912,14 @@
             if (u.id === 'admin-default') return true;
             if (u.id === 'ADMIN') return true;
             if (u.usuario === 'admin') return true;
-            const puesto = (u.puesto || '').toLowerCase();
+            const puesto = (u.puesto || '').trim().toLowerCase();
             if (puesto.includes('director') || puesto.includes('administrador general')) return true;
-            // Mismo criterio que esAdmin() en funeraria-huerta (puesto incluye
-            // "administrador") — ahora que Colaboradores es una sola hoja
-            // compartida, alguien dado de alta como Administrador ahí debe verse
-            // como admin en las dos apps, no solo en una.
-            if (puesto.includes('administrador')) return true;
+            // Mismo criterio que esAdmin()/_esPuestoAdmin() en funeraria-huerta:
+            // acepta "administrador" como subcadena, y también el código corto
+            // "admin" que usan los colaboradores migrados desde ODS (ej. Sergio
+            // Armando Cadena Huerta) — pero como valor EXACTO, no subcadena, para
+            // no dar de alta por accidente a un puesto como "Auxiliar Administrativo".
+            if (puesto === 'admin' || puesto.includes('administrador')) return true;
             return false;
         }
 
