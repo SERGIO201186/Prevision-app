@@ -1969,6 +1969,32 @@
             }
         }
 
+        // Inicio de sesión único cuando esta app se abre desde el panel Omnia
+        // Control (iniciopc): ese panel manda, en la URL, la MISMA credencial
+        // (PIN o usuario+contraseña) que el colaborador ya usó para entrar ahí
+        // — así no hay que volver a teclearla aquí. Se valida contra el mismo
+        // backend compartido de siempre (intentarAccesoCompartido), igual que
+        // si se hubiera escrito a mano. La URL se limpia enseguida
+        // (history.replaceState) para no dejar la credencial visible en la
+        // barra de direcciones ni en el historial del navegador.
+        async function autoLoginDesdeURL() {
+            const params = new URLSearchParams(window.location.search);
+            const raw = params.get('omniaAuth');
+            if (!raw) return false;
+            params.delete('omniaAuth');
+            const query = params.toString();
+            history.replaceState(null, '', window.location.pathname + (query ? '?' + query : ''));
+            let authCred = null;
+            try { authCred = JSON.parse(raw); } catch (e) { return false; }
+            if (!authCred || (!authCred.pin && !(authCred.usuario && authCred.contrasena))) return false;
+            const colaborador = await intentarAccesoCompartido(authCred);
+            if (colaborador) {
+                entrarConColaborador(colaborador, authCred.usuario || null, authCred);
+                return true;
+            }
+            return false;
+        }
+
         function checkSession() {
             try {
                 const savedSession = localStorage.getItem('huerta_session');
@@ -5109,9 +5135,14 @@
         }
 
         // Inicialización — no esperar a lucide para arrancar
-        window.onload = function() {
+        window.onload = async function() {
             safeCreateIcons();
-            checkSession();
+            // Si se abrió desde el panel Omnia Control con una credencial en
+            // la URL, entra sola con ella (inicio de sesión único). Si no
+            // había credencial en la URL, o no fue válida, cae al
+            // comportamiento de siempre: restaurar la sesión de este equipo.
+            const entroPorSSO = await autoLoginDesdeURL();
+            if (!entroPorSSO) checkSession();
             // Si ya está offline al cargar, mostrar badge en login
             if (!navigator.onLine) {
                 const badge = document.getElementById('login-offline-badge');
