@@ -1985,6 +1985,7 @@
         }
 
         function handleLogout() {
+            detenerSyncPeriodico();
             localStorage.removeItem('huerta_session');
             localStorage.removeItem('huerta_auth_cred');
             currentActiveUser = null;
@@ -2300,16 +2301,21 @@
         // Nube para las instrucciones de despliegue.
 
         // --- PROCESO DE SINCRONIZACIÓN NUBE CORREGIDO (SIN no-cors, con manejo real de errores) ---
-        async function syncPendingData() {
+        // silencioso=true se usa para las sincronizaciones automáticas (al entrar y cada
+        // SYNC_INTERVALO_MS) para no interrumpir con toasts ni tocar el botón manual mientras
+        // el usuario no pidió sincronizar él mismo. Devuelve true/false según el resultado.
+        async function syncPendingData(silencioso = false) {
             if (!googleScriptUrl) {
-                showToast("Por favor, ingresa una URL válida de Apps Script en la pestaña Nube.", "error");
-                return;
+                if (!silencioso) showToast("Por favor, ingresa una URL válida de Apps Script en la pestaña Nube.", "error");
+                return false;
             }
 
             // Indicador visual de progreso
             const syncBtn = document.querySelector('[onclick="syncPendingData()"]');
-            if (syncBtn) { syncBtn.disabled = true; syncBtn.innerText = '⏳ Sincronizando...'; }
-            showToast("Subiendo datos a Google Sheets...", "success");
+            if (!silencioso) {
+                if (syncBtn) { syncBtn.disabled = true; syncBtn.innerText = '⏳ Sincronizando...'; }
+                showToast("Subiendo datos a Google Sheets...", "success");
+            }
 
             // ─── SOLO SUBIR LO REALMENTE PENDIENTE (no todo lo que hay en este dispositivo) ───
             // Antes se mandaba clients/payments/employees COMPLETOS en cada sincronización.
@@ -2518,20 +2524,40 @@
                     try { renderPaymentsTab(); } catch(e) {}
                     try { renderCertificadosHistory(); } catch(e) {}
                     try { updatePendingBadge(); } catch(e) {}
-                    showToast(`✅ Sincronización completa — ${(remoteData.contracts||[]).length} contratos, ${(remoteData.payments||[]).length} abonos en la nube.`, "success");
+                    if (!silencioso) showToast(`✅ Sincronización completa — ${(remoteData.contracts||[]).length} contratos, ${(remoteData.payments||[]).length} abonos en la nube.`, "success");
+                    return true;
                 } else {
                     throw new Error(remoteData.message || 'La hoja respondió con error.');
                 }
 
             } catch(err) {
                 console.error('Error de sincronización:', err);
-                showToast(`⚠ Error: ${err.message}`, "error");
+                if (!silencioso) showToast(`⚠ Error: ${err.message}`, "error");
                 // Mostrar instrucciones de diagnóstico en el indicador
                 const syncTimeEl = document.getElementById('sync-last-time');
                 if (syncTimeEl) syncTimeEl.innerText = `Error: ${err.message} — Verifica que el script esté desplegado como "Cualquier usuario" y que hayas copiado el Apps Script actualizado.`;
+                return false;
             } finally {
-                if (syncBtn) { syncBtn.disabled = false; syncBtn.innerHTML = '<i data-lucide="refresh-cw" class="h-4 w-4"></i> Sincronizar e Integrar Todo'; safeCreateIcons(); }
+                if (!silencioso && syncBtn) { syncBtn.disabled = false; syncBtn.innerHTML = '<i data-lucide="refresh-cw" class="h-4 w-4"></i> Sincronizar e Integrar Todo'; safeCreateIcons(); }
             }
+        }
+
+        // ── SINCRONIZACIÓN AUTOMÁTICA ──
+        // Antes había que entrar a la pestaña Sincronización Nube y dar clic en "Sincronizar
+        // e Integrar Todo" a mano; si nadie lo hacía, un dispositivo se podía quedar viendo
+        // datos viejos indefinidamente aunque otros equipos ya hubieran subido cambios nuevos.
+        // Ahora se sincroniza solo al iniciar sesión (o al recargar con sesión activa) y de
+        // ahí en adelante cada SYNC_INTERVALO_MS mientras la app siga abierta, en silencio.
+        const SYNC_INTERVALO_MS = 5 * 60 * 1000; // 5 minutos
+        let syncIntervalId = null;
+        function iniciarSyncPeriodico() {
+            if (syncIntervalId) clearInterval(syncIntervalId);
+            syncIntervalId = setInterval(function () {
+                if (navigator.onLine && googleScriptUrl) syncPendingData(true);
+            }, SYNC_INTERVALO_MS);
+        }
+        function detenerSyncPeriodico() {
+            if (syncIntervalId) { clearInterval(syncIntervalId); syncIntervalId = null; }
         }
 
         function saveGoogleUrl() {
@@ -4977,6 +5003,8 @@
                     switchTab('asesor');
                 }
             } catch(e) { console.warn('switchtab',e); }
+            try { if (googleScriptUrl) syncPendingData(true); } catch(e) { console.warn('autosync',e); }
+            try { iniciarSyncPeriodico(); } catch(e) { console.warn('autosync-interval',e); }
         }
 
         function closeViewContractModal() {
