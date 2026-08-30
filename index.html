@@ -1534,6 +1534,12 @@
         let canvas, ctx;
         let lockedSignatureData = "";
         let currentActiveUser = null;
+        // Cierre de sesión por inactividad: si no hay clics/teclas/toques durante
+        // SESSION_IDLE_MS, o si la app estuvo cerrada más tiempo que eso, se pide el PIN
+        // de nuevo en vez de dejar la sesión abierta indefinidamente en el dispositivo.
+        const SESSION_IDLE_MS = 10 * 60 * 1000; // 10 minutos
+        const ACTIVITY_KEY = 'huerta_last_activity';
+        let lastActivityTs = Date.now();
         // Credencial (PIN o usuario/contraseña) del colaborador con sesión activa — se manda
         // con cada sincronización para que el servidor verifique que quien escribe en las
         // hojas es un empleado real. Se restaura desde localStorage en checkSession().
@@ -1899,6 +1905,7 @@
             };
             currentActiveUser = sesion;
             localStorage.setItem('huerta_session', JSON.stringify(sesion));
+            registrarActividad();
             // Credencial (PIN o usuario/contraseña) que se manda con cada sincronización para
             // que el servidor verifique que quien escribe en las hojas es un empleado real
             // — nunca basta con conocer la URL de Apps Script. Se guarda localmente en ESTE
@@ -1973,8 +1980,19 @@
             try {
                 const savedSession = localStorage.getItem('huerta_session');
                 if (savedSession) {
+                    // Si el dispositivo llevaba más de SESSION_IDLE_MS sin actividad (o la
+                    // app estuvo cerrada más tiempo que eso), no se restaura la sesión: se
+                    // pide el PIN de nuevo, igual que si hubiera cerrado sesión.
+                    const lastActivity = Number(localStorage.getItem(ACTIVITY_KEY) || 0);
+                    if (!lastActivity || (Date.now() - lastActivity) > SESSION_IDLE_MS) {
+                        localStorage.removeItem('huerta_session');
+                        localStorage.removeItem('huerta_auth_cred');
+                        localStorage.removeItem(ACTIVITY_KEY);
+                        return;
+                    }
                     currentActiveUser = JSON.parse(savedSession);
                     try { _authCred = JSON.parse(localStorage.getItem('huerta_auth_cred')) || null; } catch(ex) { _authCred = null; }
+                    registrarActividad();
                     document.getElementById('login-screen').style.display = 'none';
                     try { initApp(); } catch(err) { console.error('initApp error:', err); }
                     try { cargarTiendaCache(); } catch(err) {}
@@ -1984,10 +2002,38 @@
             }
         }
 
+        // Registra la última actividad del usuario (clic, tecla, toque o movimiento del
+        // mouse) mientras hay sesión activa, para poder detectar inactividad.
+        function registrarActividad() {
+            lastActivityTs = Date.now();
+            if (currentActiveUser) localStorage.setItem(ACTIVITY_KEY, String(lastActivityTs));
+        }
+        ['click', 'keydown', 'touchstart', 'mousemove'].forEach(function (ev) {
+            document.addEventListener(ev, registrarActividad, { passive: true });
+        });
+
+        let inactivityIntervalId = null;
+        function iniciarControlInactividad() {
+            if (inactivityIntervalId) clearInterval(inactivityIntervalId);
+            inactivityIntervalId = setInterval(function () {
+                if (!currentActiveUser) return;
+                if (Date.now() - lastActivityTs > SESSION_IDLE_MS) {
+                    detenerControlInactividad();
+                    handleLogout();
+                    showToast('Sesión cerrada por inactividad. Ingresa tu PIN de nuevo.', 'error');
+                }
+            }, 15000); // revisa cada 15s — suficiente frente a un límite de 10 minutos
+        }
+        function detenerControlInactividad() {
+            if (inactivityIntervalId) { clearInterval(inactivityIntervalId); inactivityIntervalId = null; }
+        }
+
         function handleLogout() {
             detenerSyncPeriodico();
+            detenerControlInactividad();
             localStorage.removeItem('huerta_session');
             localStorage.removeItem('huerta_auth_cred');
+            localStorage.removeItem(ACTIVITY_KEY);
             currentActiveUser = null;
             _authCred = null;
             document.getElementById('login-screen').style.display = 'flex';
@@ -5005,6 +5051,7 @@
             } catch(e) { console.warn('switchtab',e); }
             try { if (googleScriptUrl) syncPendingData(true); } catch(e) { console.warn('autosync',e); }
             try { iniciarSyncPeriodico(); } catch(e) { console.warn('autosync-interval',e); }
+            try { iniciarControlInactividad(); } catch(e) { console.warn('inactividad',e); }
         }
 
         function closeViewContractModal() {
