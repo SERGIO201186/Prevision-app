@@ -1864,6 +1864,18 @@
             LOGIN_PIN = LOGIN_PIN.slice(0, -1);
             updateLoginPinDots();
         }
+        // Permite teclear el PIN desde el teclado físico (números 0-9, Backspace
+        // para borrar y Enter para confirmar) sin tener que dar clic en los botones,
+        // para computadoras donde se inicia sesión sin pantalla táctil.
+        document.addEventListener('keydown', function (e) {
+            const loginScreen = document.getElementById('login-screen');
+            const pinPanel = document.getElementById('login-pin-panel');
+            if (!loginScreen || loginScreen.style.display === 'none') return;
+            if (!pinPanel || pinPanel.classList.contains('hidden')) return;
+            if (e.key >= '0' && e.key <= '9') { e.preventDefault(); pinPress(e.key); }
+            else if (e.key === 'Backspace') { e.preventDefault(); pinDelete(); }
+            else if (e.key === 'Enter') { e.preventDefault(); doLoginPin(); }
+        });
 
         async function intentarAccesoCompartido(payload) {
             try {
