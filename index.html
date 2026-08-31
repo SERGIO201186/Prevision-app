@@ -682,6 +682,14 @@
                     <button onclick="cargarPagosMP()" class="text-xs text-slate-400 hover:text-amber-400 border border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
                         <i data-lucide="refresh-cw" class="h-3 w-3"></i> Actualizar lista de pagos
                     </button>
+                    <div class="bg-slate-900/60 border border-slate-800 rounded-lg p-3 space-y-1.5">
+                        <p class="text-[11px] text-slate-400 leading-relaxed">¿Un cliente pagó pero no aparece aquí? Puede ser que la notificación (webhook) de Mercado Pago no llegara. Pega el <b>ID de pago</b> (lo ves en el detalle de la operación en tu panel de Mercado Pago) para agregarlo manualmente:</p>
+                        <div class="flex gap-2">
+                            <input id="mp-payment-id-manual" type="text" inputmode="numeric" placeholder="ID de pago de Mercado Pago"
+                                class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-600">
+                            <button onclick="buscarPagoMPManual()" class="text-xs text-amber-400 hover:text-amber-300 border border-amber-800/50 px-3 py-1.5 rounded-lg whitespace-nowrap">Buscar y agregar</button>
+                        </div>
+                    </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-sm text-slate-300">
                             <thead class="bg-slate-900 text-slate-400 text-xs uppercase">
@@ -3607,6 +3615,29 @@
                 syncPendingData();
             } catch (e) {
                 showToast('No se pudo confirmar el pago: ' + e.message, 'error');
+            }
+        }
+
+        async function buscarPagoMPManual() {
+            if (!googleScriptUrl) { showToast('Configura primero la URL de Google Apps Script.', 'error'); return; }
+            const input = document.getElementById('mp-payment-id-manual');
+            const mpPaymentId = input ? input.value.trim() : '';
+            if (!mpPaymentId) { showToast('Escribe el ID de pago de Mercado Pago.', 'error'); return; }
+            const adminAuth = pedirAuthAdmin();
+            if (!adminAuth) return;
+            try {
+                const res = await fetch(googleScriptUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'buscarPagoMP', mpPaymentId: mpPaymentId, adminAuth: adminAuth })
+                });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || 'Error desconocido');
+                showToast(data.mensaje || 'Pago agregado.', 'success');
+                if (input) input.value = '';
+                cargarPagosMP();
+            } catch (e) {
+                showToast('No se pudo buscar el pago: ' + e.message, 'error');
             }
         }
 

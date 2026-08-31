@@ -286,6 +286,7 @@ function doPost(e) {
       case "actualizarDispositivo":         result = verificarAdminColaborador(payload.adminAuth) ? actualizarDispositivo(payload) : { ok:false, error:"No autorizado." }; break;
       case "confirmarPagoMP":               result = verificarAdminColaborador(payload.adminAuth) ? confirmarPagoMP(payload) : { ok:false, error:"No autorizado." }; break;
       case "descartarPagoMP":               result = verificarAdminColaborador(payload.adminAuth) ? descartarPagoMP(payload) : { ok:false, error:"No autorizado." }; break;
+      case "buscarPagoMP":                  result = verificarAdminColaborador(payload.adminAuth) ? buscarPagoMP(payload) : { ok:false, error:"No autorizado." }; break;
       // Sincronización de Previsión (contratos/abonos/empleados/certificados) — los
       // empleados que traiga se guardan con la MISMA guardarColaborador() de arriba.
       // El cliente de Previsión espera {result:"success"} u otro {result, message}
@@ -1943,18 +1944,55 @@ function _procesarWebhookMP(mpPaymentId) {
     });
     mpPay = JSON.parse(mpPayRes.getContentText());
     if (mpPay && mpPay.status === 'approved' && mpPay.external_reference) {
-      const sh = getPMPSh();
-      const yaExiste = findRow(sh, "MP_PAYMENT_ID", mpPaymentId) !== -1;
-      if (!yaExiste) {
-        sh.appendRow([Utilities.getUuid(), mpPay.external_reference, mpPay.transaction_amount || 0,
-          String(mpPaymentId), new Date().toLocaleString('es-MX'), 'pendiente_revision', '']);
-      }
+      _registrarPagoMPPendiente(mpPay);
     }
     Logger.log('Webhook MP procesado: pago ' + mpPaymentId + ', status ' + (mpPay && mpPay.status));
   } catch (mpErr) {
     Logger.log('Error procesando webhook de Mercado Pago: ' + mpErr.toString());
   }
   return { result: 'ok' };
+}
+
+// Agrega (si no existe ya) un pago aprobado de Mercado Pago a la hoja PAGOS_MP como
+// pendiente de revisión. La usan tanto el webhook (_procesarWebhookMP) como la búsqueda
+// manual por ID (buscarPagoMP) — mismo criterio de "ya existe" para no duplicar.
+function _registrarPagoMPPendiente(mpPay) {
+  const sh = getPMPSh();
+  const mpPaymentId = String(mpPay.id);
+  const yaExiste = findRow(sh, "MP_PAYMENT_ID", mpPaymentId) !== -1;
+  if (!yaExiste) {
+    sh.appendRow([Utilities.getUuid(), mpPay.external_reference, mpPay.transaction_amount || 0,
+      mpPaymentId, new Date().toLocaleString('es-MX'), 'pendiente_revision', '']);
+  }
+  return { yaExistia: yaExiste };
+}
+
+// Reconciliación manual: cuando el webhook de Mercado Pago no llegó (URL de notificaciones
+// mal configurada, evento "Pagos" no activado, el Web App se volvió a implementar y cambió
+// de URL, etc.) el pago nunca queda en PAGOS_MP aunque el dinero ya esté en la cuenta de MP.
+// Esta acción deja al administrador pegar el ID de pago de Mercado Pago (visible en el
+// detalle de la operación en su panel) y lo agrega a revisión sin depender del webhook.
+// Ya viene gateada con verificarAdminColaborador.
+function buscarPagoMP(payload) {
+  if (!payload.mpPaymentId) return { ok:false, error:"Falta el ID de pago de Mercado Pago." };
+  try {
+    const mpToken = PropertiesService.getScriptProperties().getProperty('MP_ACCESS_TOKEN');
+    if (!mpToken) throw new Error('MP_ACCESS_TOKEN no configurado en Propiedades del script.');
+    const mpPayRes = UrlFetchApp.fetch('https://api.mercadopago.com/v1/payments/' + encodeURIComponent(payload.mpPaymentId), {
+      headers: { Authorization: 'Bearer ' + mpToken }, muteHttpExceptions: true
+    });
+    if (mpPayRes.getResponseCode() !== 200) throw new Error('Mercado Pago no encontró ese pago. Verifica el ID.');
+    const mpPay = JSON.parse(mpPayRes.getContentText());
+    if (!mpPay || !mpPay.id) throw new Error('Mercado Pago no encontró ese pago. Verifica el ID.');
+    if (mpPay.status !== 'approved') throw new Error('Ese pago no está aprobado (estado actual: ' + mpPay.status + ').');
+    if (!mpPay.external_reference) throw new Error('Ese pago no tiene folio asociado (external_reference vacío).');
+    const resultado = _registrarPagoMPPendiente(mpPay);
+    return resultado.yaExistia
+      ? { ok:true, mensaje:'Este pago ya estaba en la lista (folio ' + mpPay.external_reference + ').' }
+      : { ok:true, mensaje:'Pago agregado a revisión: folio ' + mpPay.external_reference + ', $' + (Number(mpPay.transaction_amount)||0).toLocaleString('es-MX') + '.' };
+  } catch (bpErr) {
+    return { ok:false, error: bpErr.message };
+  }
 }
 
 // Confirma un pago pendiente de revisión: lo convierte en abono real y suma el
