@@ -1981,8 +1981,14 @@ function buscarPagoMP(payload) {
     const mpPayRes = UrlFetchApp.fetch('https://api.mercadopago.com/v1/payments/' + encodeURIComponent(payload.mpPaymentId), {
       headers: { Authorization: 'Bearer ' + mpToken }, muteHttpExceptions: true
     });
-    if (mpPayRes.getResponseCode() !== 200) throw new Error('Mercado Pago no encontró ese pago. Verifica el ID.');
-    const mpPay = JSON.parse(mpPayRes.getContentText());
+    const mpPayCode = mpPayRes.getResponseCode();
+    const mpPayBody = mpPayRes.getContentText();
+    Logger.log('buscarPagoMP: consulta a Mercado Pago devolvió HTTP ' + mpPayCode + ' — ' + mpPayBody);
+    // Se incluye el código y el cuerpo de la respuesta de Mercado Pago tal cual en el error —
+    // así el administrador ve la causa real (token inválido, pago de otra cuenta, etc.) directo
+    // en el mensaje de la app, sin tener que ir a revisar las Ejecuciones de Apps Script.
+    if (mpPayCode !== 200) throw new Error('Mercado Pago respondió ' + mpPayCode + ': ' + mpPayBody);
+    const mpPay = JSON.parse(mpPayBody);
     if (!mpPay || !mpPay.id) throw new Error('Mercado Pago no encontró ese pago. Verifica el ID.');
     if (mpPay.status !== 'approved') throw new Error('Ese pago no está aprobado (estado actual: ' + mpPay.status + ').');
     if (!mpPay.external_reference) throw new Error('Ese pago no tiene folio asociado (external_reference vacío).');
