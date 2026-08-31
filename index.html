@@ -3632,7 +3632,7 @@
                     body: JSON.stringify({ accion: 'buscarPagoMP', mpPaymentId: mpPaymentId, adminAuth: adminAuth })
                 });
                 const data = await res.json();
-                if (!data.ok) throw new Error(data.error || 'Error desconocido');
+                if (!data.ok) throw new Error(data.error || data.mensaje || 'Error desconocido');
                 showToast(data.mensaje || 'Pago agregado.', 'success');
                 if (input) input.value = '';
                 cargarPagosMP();
