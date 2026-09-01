@@ -708,6 +708,25 @@
                     </div>
                 </div>
 
+                <!-- Terminal Mercado Pago Point vinculada (compartida con la app ODS) -->
+                <div class="bg-slate-950 p-6 rounded-xl border border-emerald-800/30 space-y-3">
+                    <div class="flex items-start gap-3">
+                        <i data-lucide="credit-card" class="h-5 w-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <h4 class="font-semibold text-emerald-300 text-sm">Terminal Mercado Pago Point</h4>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">La terminal que elijas aquí es la que se usa al "Cobrar con terminal" desde cualquier contrato — se comparte automáticamente con la app ODS (misma cuenta de Mercado Pago).</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <select id="config-terminal-select" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 focus:outline-none">
+                            <option value="">-- Presiona "Buscar terminales" --</option>
+                        </select>
+                        <button onclick="buscarTerminalesMP()" class="text-xs text-slate-400 hover:text-amber-400 border border-slate-700 px-3 py-1.5 rounded-lg whitespace-nowrap">Buscar terminales</button>
+                        <button onclick="guardarTerminalMP()" class="text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-700/50 px-3 py-1.5 rounded-lg whitespace-nowrap">Vincular</button>
+                    </div>
+                    <p id="config-terminal-actual" class="text-[11px] text-slate-500"></p>
+                </div>
+
                 <!-- Seguridad: cerrar todas las sesiones -->
                 <div class="bg-slate-950 border border-red-900/30 rounded-xl p-5 space-y-3">
                     <div class="flex items-start gap-3">
@@ -1059,6 +1078,35 @@
             </form>
         </div>
     </div>
+
+    <!-- MODAL: COBRAR EN LÍNEA (QR + terminal Mercado Pago) -->
+    <div id="modal-cobro" class="fixed inset-0 bg-slate-950/90 items-center justify-center p-4 z-50" style="display:none">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+            <div class="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
+                <h3 class="text-base font-serif font-bold text-slate-100 flex items-center gap-2">
+                    <i data-lucide="credit-card" class="text-emerald-500"></i> Cobrar en línea
+                </h3>
+                <button onclick="closeCobroModal()" class="text-slate-400 hover:text-white p-1"><i data-lucide="x"></i></button>
+            </div>
+            <div class="p-5 space-y-4">
+                <p class="text-xs text-slate-400">Folio <span id="cobro-folio" class="text-amber-500 font-mono"></span> — Saldo pendiente: <span id="cobro-saldo" class="text-emerald-400 font-semibold"></span></p>
+                <div id="cobro-qr-wrap" class="bg-white rounded-xl p-3 flex items-center justify-center" style="min-height:180px"></div>
+                <p class="text-[11px] text-slate-500 text-center">El cliente escanea este QR con la cámara de su celular para pagar (mismo link de "Link de pago").</p>
+                <div class="pt-3 border-t border-slate-800 space-y-2">
+                    <label class="block text-xs text-slate-400 mb-1">Monto a cobrar en terminal</label>
+                    <div class="flex gap-2">
+                        <input type="number" id="cobro-monto-terminal" min="1" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 focus:outline-none">
+                        <button onclick="cobrarConTerminal()" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold px-3 py-2.5 rounded-lg flex items-center justify-center gap-1 whitespace-nowrap"><i data-lucide="credit-card" class="h-3.5 w-3.5"></i> Cobrar en terminal</button>
+                    </div>
+                    <div id="cobro-terminal-status" class="hidden text-xs text-amber-400 flex items-center justify-center gap-2 pt-1">
+                        <div class="h-3.5 w-3.5 border-2 border-amber-400 border-t-transparent rounded-full" style="animation:spin 0.8s linear infinite"></div>
+                        <span id="cobro-terminal-status-text">Esperando pago en la terminal…</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
 
     <!-- MODAL: REGISTRAR EMPLEADO -->
     <div id="modal-employee" class="fixed inset-0 bg-slate-950/90 items-center justify-center p-4 z-50" style="display:none">
@@ -3560,6 +3608,60 @@
             }
         }
 
+        // --- TERMINAL MERCADO PAGO POINT (compartida con la app ODS) ---
+        async function cargarConfigTerminal() {
+            if (!googleScriptUrl) return;
+            try {
+                const res = await fetch(googleScriptUrl, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'obtenerConfigPagos' })
+                });
+                const data = await res.json();
+                const el = document.getElementById('config-terminal-actual');
+                if (el) el.textContent = (data.ok && data.deviceId) ? ('Terminal vinculada actualmente: ' + data.deviceId) : 'Ninguna terminal vinculada todavía.';
+            } catch (e) { /* silencioso: no es crítico para el resto de la pantalla */ }
+        }
+
+        async function buscarTerminalesMP() {
+            if (!googleScriptUrl) { showToast('Configura primero la URL de Google Apps Script.', 'error'); return; }
+            const adminAuth = pedirAuthAdmin();
+            if (!adminAuth) return;
+            try {
+                const res = await fetch(googleScriptUrl, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'obtenerTerminalesMP', adminAuth: adminAuth })
+                });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || 'Error desconocido');
+                const select = document.getElementById('config-terminal-select');
+                select.innerHTML = (data.terminales && data.terminales.length)
+                    ? data.terminales.map(t => `<option value="${t.id}">${t.nombre}</option>`).join('')
+                    : '<option value="">Sin terminales encontradas</option>';
+            } catch (e) {
+                showToast('No se pudieron buscar terminales: ' + e.message, 'error');
+            }
+        }
+
+        async function guardarTerminalMP() {
+            if (!googleScriptUrl) return;
+            const deviceId = document.getElementById('config-terminal-select').value;
+            if (!deviceId) { showToast('Busca y selecciona una terminal primero.', 'error'); return; }
+            const adminAuth = pedirAuthAdmin();
+            if (!adminAuth) return;
+            try {
+                const res = await fetch(googleScriptUrl, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'guardarConfigPagos', deviceId: deviceId, adminAuth: adminAuth })
+                });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || 'Error desconocido');
+                showToast('✅ Terminal vinculada.', 'success');
+                cargarConfigTerminal();
+            } catch (e) {
+                showToast('No se pudo vincular la terminal: ' + e.message, 'error');
+            }
+        }
+
         async function cargarPagosMP() {
             if (!googleScriptUrl) { showToast('Configura primero la URL de Google Apps Script.', 'error'); return; }
             try {
@@ -3949,6 +4051,7 @@
                         '<button onclick="sendWhatsAppContract(\'' + c.folio + '\')" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="send" class="h-3.5 w-3.5"></i> WhatsApp</button>' +
                         (status !== 'liquidado' ? '<button onclick="sendPaymentReminder(\'' + c.folio + '\')" class="bg-slate-900 border border-amber-700/40 hover:bg-amber-950/30 text-amber-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="bell" class="h-3.5 w-3.5"></i> Recordar pago</button>' : '') +
                         (status !== 'liquidado' ? '<button onclick="copyPaymentLink(\'' + c.folio + '\')" class="bg-slate-900 border border-slate-700 hover:border-emerald-500 text-slate-400 hover:text-emerald-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="link" class="h-3.5 w-3.5"></i> Link de pago</button>' : '') +
+                        (status !== 'liquidado' ? '<button onclick="abrirCobroModal(\'' + c.folio + '\', ' + balance + ')" class="bg-slate-900 border border-emerald-700/40 hover:bg-emerald-950/30 text-emerald-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="qr-code" class="h-3.5 w-3.5"></i> Cobrar (QR/Terminal)</button>' : '') +
                         (status !== 'liquidado' ? '<button onclick="openPaymentModalWithClient(\'' + c.folio + '\')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="dollar-sign" class="h-3.5 w-3.5"></i> Abonar</button>' : '<button onclick="printCertificado(\'' + c.folio + '\')" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="award" class="h-3.5 w-3.5"></i> Certificado</button>') +
                         '<button onclick="openClientHistory(\'' + c.folio + '\')" class="bg-slate-900 border border-emerald-700/40 hover:bg-emerald-950/30 text-emerald-400 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1"><i data-lucide="clock" class="h-3.5 w-3.5"></i> Historial</button>' +
                         '<button onclick="openNewSignatureBox(\'' + c.folio + '\')" class="bg-slate-900 border border-slate-700 hover:text-white text-slate-400 text-xs px-3 py-2 rounded">Firma</button>' +
@@ -4446,6 +4549,17 @@
                 precio: newClientObj.precioTotal,
                 enganche: newClientObj.enganche
             });
+
+            // Si quedó saldo pendiente y hay teléfono capturado, ofrecer mandar el link de
+            // pago por WhatsApp de una vez (mismo mensaje que ya arma sendPaymentReminder —
+            // no se duplica lógica de WhatsApp aquí).
+            if (newClientObj.estado !== 'Completado' && newClientObj.telefono) {
+                setTimeout(() => {
+                    if (confirm('¿Enviar el link de pago al cliente por WhatsApp ahora?')) {
+                        sendPaymentReminder(folio);
+                    }
+                }, 400);
+            }
         }
 
         function savePayment(e) {
@@ -4930,6 +5044,104 @@
             const c = clients.find(cl => cl.folio === folio);
             if (!c) return;
             sendWhatsAppMessage(c, 'recordatorio');
+        }
+
+        // --- COBRAR EN LÍNEA (QR + terminal Mercado Pago Point) ---
+        let _cobroFolio = null, _cobroPollTimer = null;
+
+        function abrirCobroModal(folio, saldoSugerido) {
+            _cobroFolio = folio;
+            document.getElementById('cobro-folio').textContent = folio;
+            document.getElementById('cobro-saldo').textContent = '$' + Number(saldoSugerido || 0).toLocaleString('es-MX');
+            document.getElementById('cobro-monto-terminal').value = Math.round(Number(saldoSugerido) || 0);
+            document.getElementById('cobro-terminal-status').classList.add('hidden');
+            _renderQRCobro(paymentLinkFor(folio));
+            document.getElementById('modal-cobro').style.display = 'flex';
+            safeCreateIcons();
+        }
+
+        function closeCobroModal() {
+            document.getElementById('modal-cobro').style.display = 'none';
+            if (_cobroPollTimer) { clearInterval(_cobroPollTimer); _cobroPollTimer = null; }
+        }
+
+        // Mismo generador (qrcode-generator) y patrón que ya usa printCertificado() para el
+        // QR del certificado — aquí solo cambia el contenido: el link de pago en vez del
+        // texto de verificación.
+        function _renderQRCobro(link) {
+            const wrap = document.getElementById('cobro-qr-wrap');
+            if (!link) { wrap.innerHTML = '<span class="text-xs text-slate-500 p-4">Configura primero la URL de Google Apps Script.</span>'; return; }
+            try {
+                const qr = qrcode(0, 'M');
+                qr.addData(link);
+                qr.make();
+                wrap.innerHTML = qr.createSvgTag(4, 4)
+                    .replace(/width="\d+px?"/, 'width="180"')
+                    .replace(/height="\d+px?"/, 'height="180"');
+            } catch (e) {
+                wrap.innerHTML = '<span class="text-xs text-slate-500 p-4">No se pudo generar el QR.</span>';
+            }
+        }
+
+        // Manda el cobro a la terminal Point vinculada (configurada en Configuración) y
+        // espera a que el cliente pague ahí mismo — se acredita solo al terminar, sin pasar
+        // por "Pagos Mercado Pago — Pendientes de Revisión" (a diferencia de QR/link) porque
+        // el admin ya está presente y autenticado.
+        async function cobrarConTerminal() {
+            if (!googleScriptUrl) { showToast('Configura primero la URL de Google Apps Script.', 'error'); return; }
+            const monto = Number(document.getElementById('cobro-monto-terminal').value);
+            if (!monto || monto <= 0) { showToast('Escribe un monto válido.', 'error'); return; }
+            const adminAuth = pedirAuthAdmin();
+            if (!adminAuth) return;
+            const statusEl = document.getElementById('cobro-terminal-status');
+            const statusText = document.getElementById('cobro-terminal-status-text');
+            statusEl.classList.remove('hidden');
+            statusText.textContent = 'Enviando cobro a la terminal…';
+            try {
+                const res = await fetch(googleScriptUrl, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ accion: 'crearIntentoPagoMP', folio: _cobroFolio, tipo: 'prevision', monto: monto, adminAuth: adminAuth })
+                });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || 'Error desconocido');
+                statusText.textContent = 'Esperando pago en la terminal…';
+                _pollIntentoPagoMP(data.intentId, adminAuth);
+            } catch (e) {
+                statusEl.classList.add('hidden');
+                showToast('No se pudo iniciar el cobro: ' + e.message, 'error');
+            }
+        }
+
+        function _pollIntentoPagoMP(intentId, adminAuth) {
+            if (_cobroPollTimer) clearInterval(_cobroPollTimer);
+            _cobroPollTimer = setInterval(async () => {
+                try {
+                    const res = await fetch(googleScriptUrl, {
+                        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({ accion: 'consultarIntentoPagoMP', intentId: intentId, adminAuth: adminAuth })
+                    });
+                    const data = await res.json();
+                    if (!data.ok) {
+                        clearInterval(_cobroPollTimer); _cobroPollTimer = null;
+                        document.getElementById('cobro-terminal-status').classList.add('hidden');
+                        showToast('No se pudo confirmar el cobro: ' + data.error, 'error');
+                        return;
+                    }
+                    if (data.estado === 'aprobado') {
+                        clearInterval(_cobroPollTimer); _cobroPollTimer = null;
+                        document.getElementById('cobro-terminal-status').classList.add('hidden');
+                        showToast('✅ Cobro aprobado y acreditado.', 'success');
+                        closeCobroModal();
+                        renderClientsList();
+                        try { syncPendingData(); } catch (e) {}
+                    } else if (data.estado === 'rechazado') {
+                        clearInterval(_cobroPollTimer); _cobroPollTimer = null;
+                        document.getElementById('cobro-terminal-status').classList.add('hidden');
+                        showToast('❌ El cobro fue rechazado o cancelado en la terminal.', 'error');
+                    }
+                    // 'pendiente': sigue esperando, no hace nada — el próximo tick vuelve a consultar.
+                } catch (e) { /* fallo de red puntual: se reintenta en el próximo tick */ }
+            }, 3000);
         }
 
         // --- SISTEMA DE ENVÍO DE MENSAJES VÍA WHATSAPP ---
