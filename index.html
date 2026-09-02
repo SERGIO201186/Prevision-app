@@ -197,6 +197,9 @@
             <button onclick="switchTab('verificar')" id="btn-tab-verificar" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition text-slate-400 hover:bg-slate-900 hover:text-slate-200">
                 <i data-lucide="shield-check" class="h-4 w-4"></i> Verificar Certificado
             </button>
+            <button onclick="openDocsSearch()" id="btn-tab-docs" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition text-slate-400 hover:bg-slate-900 hover:text-slate-200">
+                <i data-lucide="search" class="h-4 w-4"></i> Buscar Documentos
+            </button>
             <button onclick="switchTab('payments')" id="btn-tab-payments" class="admin-only w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition text-slate-400 hover:bg-slate-900 hover:text-slate-200">
                 <i data-lucide="wallet" class="h-4 w-4"></i> Control de Pagos
             </button>
@@ -1196,6 +1199,24 @@
                 </table>
                 <div id="history-empty" class="hidden text-center text-slate-500 text-xs py-6">No hay abonos registrados para este contrato.</div>
             </div>
+            <!-- Documentos (respaldos digitalizados: reemplaza el expediente físico) -->
+            <div class="p-4 border-t border-slate-800 bg-slate-950/20">
+                <h4 class="text-xs font-serif font-bold text-slate-200 flex items-center gap-1.5 mb-2">
+                    <i data-lucide="paperclip" class="h-3.5 w-3.5 text-emerald-400"></i> Documentos
+                </h4>
+                <p class="text-[10px] text-slate-500 mb-2">Sube la foto desde el celular — se comprime sola antes de subirse. Se guarda en la nube, no en papel.</p>
+                <div class="flex flex-wrap gap-2 mb-3">
+                    <label class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold px-3 py-2 rounded-lg cursor-pointer flex items-center gap-1.5">
+                        <i data-lucide="upload" class="h-3.5 w-3.5"></i> INE del Titular
+                        <input type="file" accept="image/*,application/pdf" capture="environment" class="hidden" onchange="onSeleccionArchivoDoc(event,'INE_CONTRATANTE')"/>
+                    </label>
+                    <label class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold px-3 py-2 rounded-lg cursor-pointer flex items-center gap-1.5">
+                        <i data-lucide="upload" class="h-3.5 w-3.5"></i> INE del Beneficiario
+                        <input type="file" accept="image/*,application/pdf" capture="environment" class="hidden" onchange="onSeleccionArchivoDoc(event,'INE_BENEFICIARIO')"/>
+                    </label>
+                </div>
+                <div id="history-docs-list" class="space-y-1.5"><p class="text-[11px] text-slate-500">Cargando documentos…</p></div>
+            </div>
             <div class="p-4 border-t border-slate-800 flex justify-between items-center bg-slate-950/30">
                 <div class="text-xs text-slate-400">
                     Total abonos registrados: <span id="history-count" class="font-bold text-emerald-400">0</span>
@@ -1203,6 +1224,28 @@
                 <button onclick="closeClientHistory()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold px-4 py-2 rounded-lg border border-slate-700">
                     Cerrar
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL BUSCAR DOCUMENTOS (por folio o nombre, todos los contratos) -->
+    <div id="modal-docs-search" class="fixed inset-0 bg-slate-950/90 items-center justify-center p-4 z-50" style="display:none">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden">
+            <div class="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
+                <div>
+                    <h3 class="text-base font-serif font-bold text-slate-100 flex items-center gap-2">
+                        <i data-lucide="search" class="text-emerald-400 h-5 w-5"></i> Buscar Documentos
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Por folio o por nombre del contratante</p>
+                </div>
+                <button onclick="closeDocsSearch()" class="text-slate-400 hover:text-white p-1"><i data-lucide="x" class="h-5 w-5"></i></button>
+            </div>
+            <div class="p-4 grid grid-cols-2 gap-3 border-b border-slate-800">
+                <input id="ds-folio" type="text" placeholder="Folio…" oninput="buscarDocsGlobal()" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200"/>
+                <input id="ds-nombre" type="text" placeholder="Nombre del contratante…" oninput="buscarDocsGlobal()" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200"/>
+            </div>
+            <div id="ds-resultados" class="p-4 max-h-96 overflow-y-auto no-scrollbar space-y-1.5">
+                <p class="text-[11px] text-slate-500">Escribe un folio o un nombre para buscar.</p>
             </div>
         </div>
     </div>
@@ -4188,10 +4231,185 @@
 
             document.getElementById('modal-client-history').style.display = 'flex';
             safeCreateIcons();
+            cargarDocumentosContrato(folio);
         }
 
         function closeClientHistory() {
             document.getElementById('modal-client-history').style.display = 'none';
+        }
+
+        /* ══════════════════════════════════════════════════════════════
+           DOCUMENTOS (respaldos digitalizados en la nube — reemplaza el
+           expediente físico). Se comprimen en el navegador antes de
+           subirse y quedan indexados por folio en el mismo backend
+           compartido con la app de ODS. Aquí no hay lectura automática
+           (IA): solo guardar, listar, ver, descargar y buscar.
+           ══════════════════════════════════════════════════════════════ */
+        const DOC_TIPO_LABELS_PREV = { INE_CONTRATANTE: 'INE del Titular', INE_BENEFICIARIO: 'INE del Beneficiario' };
+        function _etiquetaTipoDocPrev(t) { return DOC_TIPO_LABELS_PREV[t] || t; }
+        function _tamanoLegiblePrev(bytes) {
+            bytes = Number(bytes) || 0;
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+            return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+        }
+        // Redimensiona a máx. 1600px de lado mayor y recomprime a JPEG ~75% —
+        // una foto de celular de varios MB queda normalmente en 150-400KB.
+        function comprimirImagen(file, maxDim = 1600, calidad = 0.75) {
+            return new Promise((resolve, reject) => {
+                if (!file.type || !file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve({ base64: reader.result, mimeType: file.type || 'application/pdf' });
+                    reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+                    reader.readAsDataURL(file);
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onerror = () => reject(new Error('No se pudo leer la imagen'));
+                reader.onload = () => {
+                    const img = new Image();
+                    img.onerror = () => reject(new Error('No se pudo procesar la imagen'));
+                    img.onload = () => {
+                        let { width, height } = img;
+                        if (width > maxDim || height > maxDim) {
+                            if (width > height) { height = Math.round(height * maxDim / width); width = maxDim; }
+                            else { width = Math.round(width * maxDim / height); height = maxDim; }
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width; canvas.height = height;
+                        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                        resolve({ base64: canvas.toDataURL('image/jpeg', calidad), mimeType: 'image/jpeg' });
+                    };
+                    img.src = reader.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+        async function apiDocs(body) {
+            if (!googleScriptUrl) throw new Error('URL no configurada');
+            const r = await fetch(googleScriptUrl, {
+                method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(Object.assign({ auth: _authCred }, body))
+            });
+            return r.json();
+        }
+        async function onSeleccionArchivoDoc(evt, tipo) {
+            const file = evt.target.files[0];
+            evt.target.value = '';
+            if (!file) return;
+            const folio = document.getElementById('modal-client-history').dataset.folio;
+            const c = clients.find(cl => cl.folio === folio);
+            if (!folio || !c) { showToast('Abre primero el historial de un contrato.', 'error'); return; }
+            showToast('Subiendo documento…', 'success');
+            try {
+                const { base64, mimeType } = await comprimirImagen(file);
+                const r = await apiDocs({
+                    accion: 'subirDocumento', app: 'PREVISION', folio, tipoDocumento: tipo,
+                    nombreContratante: c.nombre || '', base64, mimeType, nombreArchivo: file.name,
+                    subidoPor: (currentActiveUser && (currentActiveUser.nombreCompleto || currentActiveUser.usuario)) || ''
+                });
+                if (!r.ok) { showToast(r.error || 'No se pudo subir el documento', 'error'); return; }
+                showToast('Documento subido', 'success');
+                cargarDocumentosContrato(folio);
+            } catch (e) {
+                showToast('Error al subir: ' + e.message, 'error');
+            }
+        }
+        async function cargarDocumentosContrato(folio) {
+            document.getElementById('modal-client-history').dataset.folio = folio;
+            const host = document.getElementById('history-docs-list');
+            host.innerHTML = '<p class="text-[11px] text-slate-500">Cargando documentos…</p>';
+            try {
+                const r = await apiDocs({ accion: 'obtenerDocumentos', filtros: { app: 'PREVISION', folio } });
+                renderListaDocs(host, (r.ok && r.documentos) || []);
+            } catch (e) {
+                host.innerHTML = '<p class="text-[11px] text-red-400">Error al cargar documentos.</p>';
+            }
+        }
+        function renderListaDocs(host, docs) {
+            if (!docs.length) { host.innerHTML = '<p class="text-[11px] text-slate-500">Todavía no hay documentos guardados.</p>'; return; }
+            host.innerHTML = docs.map(d =>
+                '<div class="flex items-center justify-between gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">' +
+                    '<div class="min-w-0">' +
+                        '<p class="text-xs font-semibold text-slate-200 truncate">' + _etiquetaTipoDocPrev(d.tipoDocumento) + (d.app === 'PREVISION' ? '' : ' <span class="text-emerald-400">(' + d.folio + ')</span>') + '</p>' +
+                        '<p class="text-[10px] text-slate-500">' + new Date(d.fechaSubida).toLocaleString('es-MX') + ' · ' + _tamanoLegiblePrev(d.tamanoBytes) + '</p>' +
+                    '</div>' +
+                    '<div class="flex gap-1.5 flex-shrink-0">' +
+                        '<button onclick="verDocumento(\'' + d.id + '\')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold px-2 py-1.5 rounded flex items-center gap-1"><i data-lucide="eye" class="h-3 w-3"></i> Ver</button>' +
+                        '<button onclick="descargarDocumento(\'' + d.id + '\')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold px-2 py-1.5 rounded flex items-center gap-1"><i data-lucide="download" class="h-3 w-3"></i></button>' +
+                        (isAdmin() ? '<button onclick="eliminarDocumentoUI(\'' + d.id + '\')" class="bg-red-950/60 hover:bg-red-900/60 text-red-400 text-[10px] font-semibold px-2 py-1.5 rounded flex items-center gap-1"><i data-lucide="trash-2" class="h-3 w-3"></i></button>' : '') +
+                    '</div>' +
+                '</div>'
+            ).join('');
+            safeCreateIcons();
+        }
+        async function verDocumento(id) {
+            showToast('Cargando documento…', 'success');
+            try {
+                const r = await apiDocs({ accion: 'obtenerDocumentoArchivo', id });
+                if (!r.ok) { showToast(r.error || 'No se pudo abrir el documento', 'error'); return; }
+                const w = window.open('');
+                if (!w) { showToast('El navegador bloqueó la ventana — permite ventanas emergentes', 'error'); return; }
+                if (r.mimeType === 'application/pdf') {
+                    w.document.write('<iframe src="data:application/pdf;base64,' + r.base64 + '" style="width:100%;height:100vh;border:0"></iframe>');
+                } else {
+                    w.document.write('<body style="margin:0;background:#111"><img src="data:' + r.mimeType + ';base64,' + r.base64 + '" style="max-width:100%;display:block;margin:0 auto"/></body>');
+                }
+            } catch (e) { showToast('Error: ' + e.message, 'error'); }
+        }
+        async function descargarDocumento(id) {
+            try {
+                const r = await apiDocs({ accion: 'obtenerDocumentoArchivo', id });
+                if (!r.ok) { showToast(r.error || 'No se pudo descargar', 'error'); return; }
+                const a = document.createElement('a');
+                a.href = 'data:' + r.mimeType + ';base64,' + r.base64;
+                a.download = r.nombreArchivo || 'documento';
+                document.body.appendChild(a); a.click(); a.remove();
+            } catch (e) { showToast('Error: ' + e.message, 'error'); }
+        }
+        async function eliminarDocumentoUI(id) {
+            if (!isAdmin()) { showToast('Esta acción requiere permisos de Administrador', 'error'); return; }
+            if (!confirm('¿Eliminar este documento? No se puede deshacer.')) return;
+            try {
+                const r = await apiDocs({ accion: 'eliminarDocumento', id });
+                if (!r.ok) { showToast(r.error || 'No se pudo eliminar', 'error'); return; }
+                showToast('Documento eliminado', 'success');
+                const folio = document.getElementById('modal-client-history').dataset.folio;
+                if (folio && document.getElementById('modal-client-history').style.display === 'flex') cargarDocumentosContrato(folio);
+                if (document.getElementById('modal-docs-search').style.display === 'flex') buscarDocsGlobal();
+            } catch (e) { showToast('Error: ' + e.message, 'error'); }
+        }
+
+        /* ── Buscador global de documentos (por folio o nombre) ── */
+        let _dsTimer = null;
+        function buscarDocsGlobal() {
+            clearTimeout(_dsTimer);
+            _dsTimer = setTimeout(_buscarDocsGlobalAhora, 300);
+        }
+        async function _buscarDocsGlobalAhora() {
+            const folio = document.getElementById('ds-folio').value.trim();
+            const nombre = document.getElementById('ds-nombre').value.trim();
+            const host = document.getElementById('ds-resultados');
+            if (!folio && !nombre) { host.innerHTML = '<p class="text-[11px] text-slate-500">Escribe un folio o un nombre para buscar.</p>'; return; }
+            host.innerHTML = '<p class="text-[11px] text-slate-500">Buscando…</p>';
+            try {
+                const filtros = {};
+                if (folio) filtros.folio = folio;
+                if (nombre) filtros.nombre = nombre;
+                const r = await apiDocs({ accion: 'obtenerDocumentos', filtros });
+                renderListaDocs(host, (r.ok && r.documentos) || []);
+            } catch (e) {
+                host.innerHTML = '<p class="text-[11px] text-red-400">Error al buscar: ' + e.message + '</p>';
+            }
+        }
+        function openDocsSearch() {
+            document.getElementById('ds-folio').value = '';
+            document.getElementById('ds-nombre').value = '';
+            document.getElementById('ds-resultados').innerHTML = '<p class="text-[11px] text-slate-500">Escribe un folio o un nombre para buscar.</p>';
+            document.getElementById('modal-docs-search').style.display = 'flex';
+        }
+        function closeDocsSearch() {
+            document.getElementById('modal-docs-search').style.display = 'none';
         }
 
         // --- META DEL ASESOR ---
