@@ -992,21 +992,31 @@
                 <!-- Bloque 4: Firma Digital y Observaciones -->
                 <div class="space-y-4">
                     <h4 class="text-xs uppercase tracking-wider text-amber-500 font-bold border-b border-slate-800 pb-1">4. Firma y Conformidad Digital</h4>
-                    <p class="text-[10px] text-slate-400 leading-relaxed">Solicita al adquirente estampar su firma directamente en el cuadro de abajo.</p>
-                    
-                    <div class="relative border-2 border-dashed border-slate-700 rounded-lg bg-slate-950 overflow-hidden">
-                        <canvas id="signature-canvas" class="cursor-crosshair block bg-slate-950 w-full" style="height: 120px;"></canvas>
-                        <div id="signature-placeholder" class="absolute inset-0 flex items-center justify-center pointer-events-none text-slate-500 text-xs">
-                            Firmar aquí
-                        </div>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <button type="button" onclick="clearSignatureCanvas()" class="text-xs bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded transition">
-                            Limpiar Lienzo
+
+                    <div id="firma-bloqueo-nc" class="border border-dashed border-slate-700 rounded-lg bg-slate-950 p-3 text-center">
+                        <p class="text-[11px] text-slate-400 leading-relaxed mb-2">🔒 Cuando termine de capturar los datos, toque este botón para mostrarle el aviso al adquirente y habilitar su firma.</p>
+                        <button type="button" onclick="abrirAvisoFirmaNC()" class="w-full bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold px-3 py-2 rounded text-xs transition">
+                            🖊 Habilitar Firma del Cliente
                         </button>
-                        <span class="text-[10px] text-emerald-500 flex items-center gap-1">
-                            <i data-lucide="shield-check" class="h-3 w-3"></i> Guardado Dinámico Automático
-                        </span>
+                    </div>
+
+                    <div id="firma-area-nc" style="display:none">
+                        <p class="text-[10px] text-slate-400 leading-relaxed">Solicita al adquirente estampar su firma directamente en el cuadro de abajo.</p>
+
+                        <div class="relative border-2 border-dashed border-slate-700 rounded-lg bg-slate-950 overflow-hidden mt-2">
+                            <canvas id="signature-canvas" class="cursor-crosshair block bg-slate-950 w-full" style="height: 120px;"></canvas>
+                            <div id="signature-placeholder" class="absolute inset-0 flex items-center justify-center pointer-events-none text-slate-500 text-xs">
+                                Firmar aquí
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center mt-2">
+                            <button type="button" onclick="clearSignatureCanvas()" class="text-xs bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded transition">
+                                Limpiar Lienzo
+                            </button>
+                            <span class="text-[10px] text-emerald-500 flex items-center gap-1">
+                                <i data-lucide="shield-check" class="h-3 w-3"></i> Guardado Dinámico Automático
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -1024,6 +1034,28 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- MODAL: AVISO PREVIO A LA FIRMA (se muestra al adquirente antes de firmar) -->
+    <div id="modal-aviso-firma-nc" class="fixed inset-0 bg-slate-950/95 items-center justify-center p-4 z-[60]" style="display:none">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div class="p-5 text-center">
+                <div class="text-4xl mb-1">✍️</div>
+                <h3 class="text-base font-serif font-bold text-slate-100 mb-3">Antes de firmar</h3>
+                <p class="text-xs text-slate-300 leading-relaxed text-left mb-3">
+                    A continuación se le pedirá su <b>firma</b>. Con esa misma firma usted acepta el <b>Contrato de Adhesión</b> de previsión funeraria y, al mismo tiempo, el <b>Aviso de Privacidad</b> sobre el uso de sus datos personales — una sola firma es válida para ambos documentos.
+                </p>
+                <p class="text-xs text-slate-300 leading-relaxed text-left mb-3">
+                    Presione <b>"Continuar"</b> para habilitar el recuadro de firma y firme enseguida con su dedo o stylus.
+                </p>
+                <p class="text-[11px] text-slate-400 leading-relaxed text-left mb-4">
+                    Recibirá una copia en PDF de estos documentos por WhatsApp, por correo electrónico o de forma física, como usted prefiera.
+                </p>
+                <button type="button" onclick="continuarAvisoFirmaNC()" class="w-full bg-amber-600 hover:bg-amber-700 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-lg shadow-lg">
+                    Continuar
+                </button>
+            </div>
         </div>
     </div>
 
@@ -2450,6 +2482,27 @@
             setupSignatureCanvas();
             document.getElementById('signature-placeholder').classList.remove('hidden');
             lockedSignatureData = "";
+        }
+
+        // El asesor presiona este botón (no el cliente) cuando ya terminó de
+        // capturar los datos y va a pedirle al adquirente que firme.
+        function abrirAvisoFirmaNC() {
+            document.getElementById('modal-aviso-firma-nc').style.display = 'flex';
+        }
+        // El cliente presiona "Continuar" en el aviso: recién ahí se habilita el
+        // recuadro de firma. El canvas se mide/inicializa hasta este momento
+        // porque antes estaba oculto (ancho 0) y no se podía dibujar en él bien.
+        function continuarAvisoFirmaNC() {
+            document.getElementById('modal-aviso-firma-nc').style.display = 'none';
+            document.getElementById('firma-bloqueo-nc').style.display = 'none';
+            document.getElementById('firma-area-nc').style.display = '';
+            setupSignatureCanvas();
+        }
+        // Vuelve a bloquear el recuadro de firma para el siguiente contrato —
+        // cada firma debe pasar de nuevo por el aviso.
+        function resetGateFirmaNC() {
+            document.getElementById('firma-bloqueo-nc').style.display = '';
+            document.getElementById('firma-area-nc').style.display = 'none';
         }
 
         function getCoordinates(e) {
@@ -4606,6 +4659,7 @@
             document.getElementById('nc-folio-indicator').innerText = generatedFolio;
             populateEmployeeSelects();
             clearSignatureCanvas();
+            resetGateFirmaNC();
             document.getElementById('modal-new-contract').style.display = 'flex';
             setupSignatureCanvas();
             // Si es asesor, pre-seleccionar su nombre en el campo de asesor
@@ -5184,6 +5238,8 @@
   </div>
 
   <div class="observaciones"><b>OBSERVACIONES:</b> ${c.observaciones || 'Ninguna especificación adicional declarada.'}</div>
+
+  <div class="observaciones" style="margin-top:5px"><b>AVISO DE PRIVACIDAD SIMPLIFICADO:</b> Servicios Funerarios Huerta, domiciliado en Nicolás Bravo 11-A, Col. Centro, C.P. 91000, Xalapa, Ver., es responsable del tratamiento de sus datos personales. Recabamos sus datos —nombre, domicilio, teléfono, identificación oficial y, en su caso, una fotografía para verificar su identidad al firmar— para elaborar y ejecutar este contrato, dar seguimiento a sus pagos y abonos, y realizar los trámites relacionados cuando se solicite el servicio. No transferimos sus datos a terceros salvo requerimiento de autoridad competente. Puede conocer el Aviso de Privacidad Integral y ejercer sus derechos ARCO (Acceso, Rectificación, Cancelación u Oposición), o revocar su consentimiento, solicitándolo con nuestro personal o llamando al (228) 468 42 83.</div>
 
   <div class="firmas">
     <div class="firma-box">
