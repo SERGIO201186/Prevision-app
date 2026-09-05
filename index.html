@@ -1652,7 +1652,8 @@
                     asesor: asesor,
                     adminEmail: adminEmail,
                     fecha: new Date().toLocaleString('es-MX'),
-                    datos: datos
+                    datos: datos,
+                    auth: _authCred
                 };
                 // Fire-and-forget — no bloqueamos la UI
                 fetch(googleScriptUrl, {
@@ -1980,6 +1981,23 @@
         // Si no está configurada, el login cae al respaldo local (localStorage).
         function getAuthUrl() { return localStorage.getItem('huerta_google_url') || DEFAULT_APPS_SCRIPT_URL; }
 
+        // El servidor guarda PIN/contraseña hasheados ("h1:<salt>:<hash>", ver
+        // Codigo.gs) — la copia local de empleados (respaldo de login sin conexión)
+        // recibe esos mismos valores hasheados, así que la comparación de respaldo
+        // local también tiene que saber verificarlos, no solo comparar texto plano.
+        async function _sha256Hex(str) {
+            const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+            return Array.from(new Uint8Array(buf)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+        }
+        async function _coincideCredencialLocal(valorPlano, valorGuardado) {
+            if (!valorPlano || !valorGuardado) return false;
+            if (typeof valorGuardado === 'string' && valorGuardado.indexOf('h1:') === 0 && valorGuardado.split(':').length === 3) {
+                const partes = valorGuardado.split(':');
+                return ('h1:' + partes[1] + ':' + await _sha256Hex(String(valorPlano) + ':' + partes[1])) === valorGuardado;
+            }
+            return String(valorGuardado) === String(valorPlano); // cuenta vieja aún sin migrar
+        }
+
         let LOGIN_PIN = '';
         function switchLoginTab(tab) {
             document.getElementById('login-pin-panel').classList.toggle('hidden', tab !== 'pin');
@@ -2066,7 +2084,11 @@
             // código fijo en el código fuente del navegador nunca es realmente secreto.
             let emps = [];
             try { emps = JSON.parse(localStorage.getItem('huerta_employees')) || []; } catch (ex) { emps = []; }
-            const foundLocal = emps.find(function (emp) { return (String(emp.pin || '') === pin || String(emp.contrasena || '') === pin) && emp.estatus === 'Activo'; });
+            let foundLocal = null;
+            for (const emp of emps) {
+                if (emp.estatus !== 'Activo') continue;
+                if ((await _coincideCredencialLocal(pin, emp.pin)) || (await _coincideCredencialLocal(pin, emp.contrasena))) { foundLocal = emp; break; }
+            }
             if (foundLocal) { entrarConColaborador(foundLocal, null, { pin: pin }); LOGIN_PIN = ''; updateLoginPinDots(); return; }
 
             document.getElementById('login-pin-status').textContent = 'PIN incorrecto';
@@ -2083,22 +2105,22 @@
             const colaborador = await intentarAccesoCompartido({ usuario: userIn, contrasena: passIn });
             if (colaborador) { entrarConColaborador(colaborador, userIn, { usuario: userIn, contrasena: passIn }); return; }
 
-            // 2. Respaldo local (cuentas creadas solo dentro de esta app, ej. admin/1234)
+            // 2. Respaldo local sin conexión — solo colaboradores reales que ya
+            // sincronizaron antes en ESTE equipo (ver _coincideCredencialLocal arriba:
+            // acepta el hash que manda el servidor o, de una cuenta vieja aún sin
+            // migrar, el texto plano). Antes había aquí una cuenta "admin/1234" fija
+            // que se autocreaba sola si el backend no respondía — cualquier valor fijo
+            // en el código del navegador nunca es realmente secreto (ver el comentario
+            // de "acceso de emergencia" más arriba, que quitó el mismo backdoor de otro
+            // lado); si te quedas sin acceso, corrige la fila del administrador
+            // directamente en la hoja Colaboradores de Google Sheets.
             let emps = [];
             try { emps = JSON.parse(localStorage.getItem('huerta_employees')) || []; } catch (ex) { emps = []; }
-            const adminIdx = emps.findIndex(function (e) { return e.id === 'admin-default' || e.usuario === 'admin'; });
-            if (adminIdx === -1) {
-                emps.unshift({ id: 'admin-default', nombre: 'Administrador General', puesto: 'Director General', telefono: '2281845114', estatus: 'Activo', usuario: 'admin', contrasena: '1234' });
-                localStorage.setItem('huerta_employees', JSON.stringify(emps));
-            } else if (!emps[adminIdx].contrasena) {
-                emps[adminIdx].contrasena = '1234';
-                localStorage.setItem('huerta_employees', JSON.stringify(emps));
-            }
-            employees = emps;
 
-            const found = emps.find(function (emp) {
-                return emp.usuario === userIn && String(emp.contrasena) === String(passIn) && emp.estatus === 'Activo';
-            });
+            let found = null;
+            for (const emp of emps) {
+                if (emp.usuario === userIn && emp.estatus === 'Activo' && await _coincideCredencialLocal(passIn, emp.contrasena)) { found = emp; break; }
+            }
 
             if (found) {
                 entrarConColaborador(found, userIn, { usuario: userIn, contrasena: passIn });
