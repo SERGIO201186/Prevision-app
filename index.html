@@ -236,6 +236,10 @@
                 <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0"></span>
                 <span id="online-banner-text">Conexión restaurada</span>
             </div>
+            <div id="pendbar" class="hidden items-center gap-2 text-[11px] bg-orange-950/60 border border-orange-700/40 rounded-lg px-2 py-1.5 text-orange-400">
+                <span class="h-2 w-2 rounded-full bg-orange-500 flex-shrink-0"></span>
+                <span>⏳ Dispositivo pendiente de autorización — no se guardan tus cambios</span>
+            </div>
             <div id="sync-indicator" class="flex items-center gap-2 text-[11px] text-slate-400">
                 <span class="h-2 w-2 rounded-full bg-red-500 animate-pulse"></span>
                 <span>Sin Configurar Nube</span>
@@ -635,6 +639,23 @@
                         <button onclick="syncPendingData()" class="w-full sm:w-auto bg-emerald-700 hover:bg-emerald-800 text-white font-medium px-6 py-3 rounded-lg text-sm flex items-center justify-center gap-2">
                             <i data-lucide="refresh-cw" class="h-4 w-4"></i> Sincronizar e Integrar Todo
                         </button>
+                    </div>
+                </div>
+
+                <!-- Dispositivos autorizados a ENTRAR y CAPTURAR datos en las apps principales (ODS/Previsión) -->
+                <div class="bg-slate-950 p-6 rounded-xl border border-emerald-800/30 space-y-3">
+                    <div class="flex items-start gap-3">
+                        <i data-lucide="smartphone" class="h-5 w-5 text-emerald-400 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <h4 class="font-semibold text-emerald-300 text-sm">📱 Dispositivos Autorizados — App Principal</h4>
+                            <p class="text-xs text-slate-400 mt-1 leading-relaxed">Cada celular/computadora que inicia sesión en ODS o en Previsión queda registrado aquí. Uno nuevo entra como <b>Pendiente</b> — puede consultar información, pero no puede guardar nada hasta que lo autorices. Renómbralos para reconocer cuál es cuál (ej. "Celular Sergio", "PC mostrador").</p>
+                        </div>
+                    </div>
+                    <button onclick="cargarDispositivosApp()" class="text-xs text-slate-400 hover:text-amber-400 border border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                        <i data-lucide="refresh-cw" class="h-3 w-3"></i> Actualizar lista
+                    </button>
+                    <div id="disp-app-lista" class="space-y-2">
+                        <p class="text-xs text-slate-500">Presiona "Actualizar lista" para ver los dispositivos.</p>
                     </div>
                 </div>
 
@@ -1623,6 +1644,67 @@
         let googleScriptUrl = localStorage.getItem('huerta_google_url') || DEFAULT_APPS_SCRIPT_URL;
         let adminEmail = localStorage.getItem('huerta_admin_email') || "";
 
+        // Identifica a ESTE dispositivo ante el backend para el control de acceso
+        // por equipo (ver "CONTROL DE ACCESO POR DISPOSITIVO" en Codigo.gs) — se
+        // genera una sola vez por navegador/instalación y viaja en cada llamada
+        // POST vía _conDeviceId(). Es un valor aleatorio sin relación con
+        // hardware/IP (Apps Script no expone ninguna de las dos): identifica
+        // "este navegador en este equipo", no a la persona que lo usa (eso ya lo
+        // hace la credencial de login).
+        const DEVICE_ID_KEY = 'huerta_device_id_v1', DEVICE_NOMBRE_KEY = 'huerta_device_nombre_v1';
+        function obtenerDeviceIdApp() {
+            let id = localStorage.getItem(DEVICE_ID_KEY);
+            if (!id) {
+                id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('dev-' + Date.now() + '-' + Math.random().toString(16).slice(2));
+                localStorage.setItem(DEVICE_ID_KEY, id);
+            }
+            return id;
+        }
+        // Nombre sugerido la primera vez que este equipo se conecta — el
+        // administrador puede renombrarlo desde Configuración → Dispositivos
+        // autorizados una vez que reconozca cuál es cuál.
+        function nombreDispositivoSugerido() {
+            const guardado = localStorage.getItem(DEVICE_NOMBRE_KEY);
+            if (guardado) return guardado;
+            const ua = navigator.userAgent || '';
+            let so = 'Equipo';
+            if (/Android/i.test(ua)) so = 'Android';
+            else if (/iPhone|iPad|iPod/i.test(ua)) so = 'iPhone/iPad';
+            else if (/Windows/i.test(ua)) so = 'Windows';
+            else if (/Macintosh/i.test(ua)) so = 'Mac';
+            else if (/Linux/i.test(ua)) so = 'Linux';
+            let nav = '';
+            if (/Edg\//i.test(ua)) nav = 'Edge';
+            else if (/Chrome\//i.test(ua)) nav = 'Chrome';
+            else if (/Firefox\//i.test(ua)) nav = 'Firefox';
+            else if (/Safari\//i.test(ua)) nav = 'Safari';
+            const nombre = `${so}${nav ? ' · ' + nav : ''}`;
+            localStorage.setItem(DEVICE_NOMBRE_KEY, nombre);
+            return nombre;
+        }
+        // Agrega miDispositivoId/miDispositivoNombre a CUALQUIER body que se
+        // mande por POST al backend — todos los fetch(googleScriptUrl, {...})
+        // de este archivo pasan su body por aquí antes de JSON.stringify. Van
+        // primero en el objeto para que un valor que el propio "obj" ya
+        // trajera (no debería pasar) sea el que gane. Nombres de campo
+        // distintos de "deviceId" a propósito: esa clave ya la usan varias
+        // acciones para OTRA cosa (el equipo autorizado a /verificar/ en
+        // actualizarDispositivo, o la terminal de Mercado Pago en
+        // guardarConfigPagos) y hubiera chocado con la identidad de quien
+        // llama, que es lo que esto manda.
+        function _conDeviceId(obj) {
+            return Object.assign({ miDispositivoId: obtenerDeviceIdApp(), miDispositivoNombre: nombreDispositivoSugerido() }, obj);
+        }
+        // Muestra/oculta la franja de "dispositivo pendiente de autorización".
+        // Se actualiza en cada sincronización, así que en cuanto el
+        // administrador autoriza el equipo desaparece solo.
+        function _actualizarBannerDispositivo(pendiente) {
+            const b = document.getElementById('pendbar');
+            if (!b) return;
+            if (pendiente) { b.classList.remove('hidden'); b.classList.add('flex'); }
+            else { b.classList.remove('flex'); b.classList.add('hidden'); }
+        }
+
         function saveAdminEmail() {
             const input = document.getElementById('admin-email-input');
             const status = document.getElementById('admin-email-status');
@@ -2034,16 +2116,29 @@
             else if (e.key === 'Enter') { e.preventDefault(); doLoginPin(); }
         });
 
+        // Dispositivo revocado por un administrador: se marca aquí para que
+        // entrarConColaborador() nunca abra la app con este resultado, aunque la
+        // credencial en sí sea correcta.
+        let _dispositivoRevocadoEnLogin = false;
         async function intentarAccesoCompartido(payload) {
+            // Se limpia al empezar cada intento — si no, un "revocado" de un
+            // intento anterior se quedaría pegado y un intento posterior que
+            // solo falló por credenciales incorrectas (o por red) se
+            // reportaría como revocado sin serlo.
+            _dispositivoRevocadoEnLogin = false;
             try {
                 const authUrl = getAuthUrl();
                 if (!authUrl) return null;
                 const res = await fetch(authUrl, {
                     method: 'POST',
-                    body: JSON.stringify(Object.assign({ accion: 'validarAcceso' }, payload))
+                    body: JSON.stringify(_conDeviceId(Object.assign({ accion: 'validarAcceso' }, payload)))
                 });
                 const data = await res.json();
-                if (data && data.ok && data.colaborador) return data.colaborador;
+                if (data && data.ok && data.colaborador) {
+                    if (data.estadoDispositivo === 'revocado') { _dispositivoRevocadoEnLogin = true; return null; }
+                    _actualizarBannerDispositivo(data.estadoDispositivo === 'pendiente');
+                    return data.colaborador;
+                }
             } catch (err) { /* sin conexión: seguimos con el respaldo local */ }
             return null;
         }
@@ -2077,6 +2172,10 @@
             // 1. Backend compartido (mismo PIN que en la app de ODS / Panel)
             const colaborador = await intentarAccesoCompartido({ pin });
             if (colaborador) { entrarConColaborador(colaborador, null, { pin: pin }); LOGIN_PIN = ''; updateLoginPinDots(); return; }
+            if (_dispositivoRevocadoEnLogin) {
+                document.getElementById('login-pin-status').textContent = 'Este dispositivo fue revocado por un administrador.';
+                LOGIN_PIN = ''; updateLoginPinDots(); return;
+            }
 
             // 2. Respaldo sin conexión: solo colaboradores que YA iniciaron sesión antes en
             // ESTE equipo (su PIN quedó en el almacenamiento local de este dispositivo, nunca
@@ -2104,6 +2203,10 @@
             // 1. Backend compartido (mismo usuario/contraseña que en la app de ODS / Panel)
             const colaborador = await intentarAccesoCompartido({ usuario: userIn, contrasena: passIn });
             if (colaborador) { entrarConColaborador(colaborador, userIn, { usuario: userIn, contrasena: passIn }); return; }
+            if (_dispositivoRevocadoEnLogin) {
+                showToast('Este dispositivo fue revocado por un administrador.', 'error');
+                return;
+            }
 
             // 2. Respaldo local sin conexión — solo colaboradores reales que ya
             // sincronizaron antes en ESTE equipo (ver _coincideCredencialLocal arriba:
@@ -2606,7 +2709,7 @@
                 const postResponse = await fetch(googleScriptUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify(packagePayload)
+                    body: JSON.stringify(_conDeviceId(packagePayload))
                 });
 
                 if (!postResponse.ok) {
@@ -2614,6 +2717,17 @@
                 }
 
                 const postResult = await postResponse.json();
+                // Dispositivo pendiente/revocado: el servidor rechazó a propósito lo
+                // que este equipo mandó (ver el candado de ACCIONES_ESCRITURA en
+                // Codigo.gs) — se refleja aquí SIEMPRE, incluso en modo silencioso,
+                // para que la franja de aviso no dependa de que alguien haya
+                // sincronizado a mano.
+                if (postResult.dispositivoRevocado) {
+                    showToast('🚫 ' + postResult.message, 'error');
+                    handleLogout();
+                    return false;
+                }
+                _actualizarBannerDispositivo(!!postResult.dispositivoPendiente);
                 if (postResult.result !== 'success') {
                     throw new Error(postResult.message || 'El script reportó un error al guardar.');
                 }
@@ -3655,6 +3769,102 @@
         }
 
         // ═══════════════════════════════════════════════════════════════
+        // DISPOSITIVOS AUTORIZADOS A LA APP PRINCIPAL (ODS/Previsión) — distinto
+        // del bloque de abajo (ese es solo para /verificar/, de solo lectura).
+        // ═══════════════════════════════════════════════════════════════
+        async function cargarDispositivosApp() {
+            const host = document.getElementById('disp-app-lista');
+            if (!host) return;
+            if (!googleScriptUrl) { host.innerHTML = '<p class="text-xs text-slate-500">Configura URL primero.</p>'; return; }
+            const adminAuth = pedirAuthAdmin();
+            if (!adminAuth) return;
+            host.innerHTML = '<p class="text-xs text-slate-500">Cargando…</p>';
+            try {
+                const res = await fetch(googleScriptUrl, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(_conDeviceId({ accion: 'obtenerDispositivosApp', adminAuth: adminAuth }))
+                });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.mensaje || 'Error desconocido');
+                _renderDispositivosApp(data.datos || []);
+            } catch (e) {
+                host.innerHTML = '<p class="text-xs text-red-400">Error: ' + e.message + '</p>';
+            }
+        }
+        function _renderDispositivosApp(lista) {
+            const host = document.getElementById('disp-app-lista');
+            if (!host) return;
+            if (!lista.length) { host.innerHTML = '<p class="text-xs text-slate-500">Todavía no se ha conectado ningún dispositivo.</p>'; return; }
+            const esteId = obtenerDeviceIdApp();
+            const orden = { pendiente: 0, autorizado: 1, revocado: 2 };
+            lista.sort((a, b) => (orden[a.ESTADO] ?? 9) - (orden[b.ESTADO] ?? 9));
+            host.innerHTML = lista.map(d => {
+                const estado = d.ESTADO || 'pendiente';
+                const colorTexto = estado === 'autorizado' ? 'text-emerald-400' : (estado === 'revocado' ? 'text-red-400' : 'text-amber-400');
+                const etiqueta = estado === 'autorizado' ? '✅ Autorizado' : (estado === 'revocado' ? '🚫 Revocado' : '⏳ Pendiente');
+                const idEsc = String(d.DEVICE_ID).replace(/'/g, "\\'");
+                const nombreEsc = String(d.NOMBRE || '').replace(/'/g, "\\'");
+                const botones = [];
+                if (estado !== 'autorizado') botones.push(`<button onclick="autorizarDispApp('${idEsc}')" class="text-emerald-400 hover:text-emerald-300 text-xs font-semibold border border-emerald-700/50 px-3 py-1.5 rounded-lg">Autorizar</button>`);
+                if (estado !== 'revocado') botones.push(`<button onclick="revocarDispApp('${idEsc}')" class="text-red-400 hover:text-red-300 text-xs font-semibold border border-red-900/50 px-3 py-1.5 rounded-lg">Revocar</button>`);
+                botones.push(`<button onclick="renombrarDispApp('${idEsc}','${nombreEsc}')" class="text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 px-3 py-1.5 rounded-lg">✏ Renombrar</button>`);
+                return `<div class="bg-slate-900 border border-slate-800 rounded-lg p-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <div class="text-sm font-semibold text-slate-200">${d.NOMBRE || '(sin nombre)'} ${d.DEVICE_ID === esteId ? '<span class="text-[10px] text-slate-500">· este equipo</span>' : ''}</div>
+                        <div class="text-xs ${colorTexto}">${etiqueta}</div>
+                        <div class="text-[10px] text-slate-500">Último uso: ${d.ULTIMO_USO || '—'} · Último en usarlo: ${d.ULTIMO_COLABORADOR || '—'}</div>
+                    </div>
+                    <div class="flex gap-2 flex-wrap">${botones.join('')}</div>
+                </div>`;
+            }).join('');
+        }
+        async function autorizarDispApp(deviceId) {
+            const adminAuth = pedirAuthAdmin();
+            if (!adminAuth) return;
+            try {
+                const res = await fetch(googleScriptUrl, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(_conDeviceId({ accion: 'actualizarDispositivoApp', deviceId: deviceId, estado: 'autorizado', adminAuth: adminAuth }))
+                });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.mensaje || 'Error desconocido');
+                showToast('✅ Dispositivo autorizado', 'success');
+                cargarDispositivosApp();
+            } catch (e) { showToast('Error: ' + e.message, 'error'); }
+        }
+        async function revocarDispApp(deviceId) {
+            if (!confirm('¿Revocar el acceso de este dispositivo? No podrá ni siquiera iniciar sesión hasta que lo autorices de nuevo.')) return;
+            const adminAuth = pedirAuthAdmin();
+            if (!adminAuth) return;
+            try {
+                const res = await fetch(googleScriptUrl, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(_conDeviceId({ accion: 'actualizarDispositivoApp', deviceId: deviceId, estado: 'revocado', adminAuth: adminAuth }))
+                });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.mensaje || 'Error desconocido');
+                showToast('🚫 Dispositivo revocado', 'success');
+                cargarDispositivosApp();
+            } catch (e) { showToast('Error: ' + e.message, 'error'); }
+        }
+        async function renombrarDispApp(deviceId, nombreActual) {
+            const nuevo = prompt('Nombre para este dispositivo (ej. "Celular Sergio", "PC mostrador"):', nombreActual || '');
+            if (nuevo == null) return;
+            const adminAuth = pedirAuthAdmin();
+            if (!adminAuth) return;
+            try {
+                const res = await fetch(googleScriptUrl, {
+                    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(_conDeviceId({ accion: 'actualizarDispositivoApp', deviceId: deviceId, nombre: nuevo, adminAuth: adminAuth }))
+                });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.mensaje || 'Error desconocido');
+                showToast('✅ Dispositivo renombrado', 'success');
+                cargarDispositivosApp();
+            } catch (e) { showToast('Error: ' + e.message, 'error'); }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
         // EQUIPOS AUTORIZADOS PARA /verificar/ — autorizar/revocar acceso
         // ═══════════════════════════════════════════════════════════════
 
@@ -3717,7 +3927,7 @@
                 const res = await fetch(googleScriptUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ accion: 'actualizarDispositivo', deviceId: deviceId, estado: nuevoEstado, adminAuth: adminAuth })
+                    body: JSON.stringify(_conDeviceId({ accion: 'actualizarDispositivo', deviceId: deviceId, estado: nuevoEstado, adminAuth: adminAuth }))
                 });
                 const data = await res.json();
                 if (!data.ok) throw new Error(data.error || 'Error desconocido');
@@ -3734,7 +3944,7 @@
             try {
                 const res = await fetch(googleScriptUrl, {
                     method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ accion: 'obtenerConfigPagos' })
+                    body: JSON.stringify(_conDeviceId({ accion: 'obtenerConfigPagos' }))
                 });
                 const data = await res.json();
                 const el = document.getElementById('config-terminal-actual');
@@ -3749,7 +3959,7 @@
             try {
                 const res = await fetch(googleScriptUrl, {
                     method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ accion: 'obtenerTerminalesMP', adminAuth: adminAuth })
+                    body: JSON.stringify(_conDeviceId({ accion: 'obtenerTerminalesMP', adminAuth: adminAuth }))
                 });
                 const data = await res.json();
                 if (!data.ok) throw new Error(data.error || 'Error desconocido');
@@ -3771,7 +3981,7 @@
             try {
                 const res = await fetch(googleScriptUrl, {
                     method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ accion: 'guardarConfigPagos', deviceId: deviceId, adminAuth: adminAuth })
+                    body: JSON.stringify(_conDeviceId({ accion: 'guardarConfigPagos', deviceId: deviceId, adminAuth: adminAuth }))
                 });
                 const data = await res.json();
                 if (!data.ok) throw new Error(data.error || 'Error desconocido');
@@ -3826,7 +4036,7 @@
                 const res = await fetch(googleScriptUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ accion: 'confirmarPagoMP', idPagoMP: idPagoMP, adminAuth: adminAuth })
+                    body: JSON.stringify(_conDeviceId({ accion: 'confirmarPagoMP', idPagoMP: idPagoMP, adminAuth: adminAuth }))
                 });
                 const data = await res.json();
                 if (!data.ok) throw new Error(data.error || 'Error desconocido');
@@ -3851,7 +4061,7 @@
                 const res = await fetch(googleScriptUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ accion: 'buscarPagoMP', mpPaymentId: mpPaymentId, adminAuth: adminAuth })
+                    body: JSON.stringify(_conDeviceId({ accion: 'buscarPagoMP', mpPaymentId: mpPaymentId, adminAuth: adminAuth }))
                 });
                 const data = await res.json();
                 if (!data.ok) throw new Error(data.error || data.mensaje || 'Error desconocido');
@@ -3872,7 +4082,7 @@
                 const res = await fetch(googleScriptUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ accion: 'descartarPagoMP', idPagoMP: idPagoMP, adminAuth: adminAuth })
+                    body: JSON.stringify(_conDeviceId({ accion: 'descartarPagoMP', idPagoMP: idPagoMP, adminAuth: adminAuth }))
                 });
                 const data = await res.json();
                 if (!data.ok) throw new Error(data.error || 'Error desconocido');
@@ -3895,7 +4105,7 @@
                 const res = await fetch(googleScriptUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ accion: 'cerrarTodasLasSesiones', adminAuth: adminAuth })
+                    body: JSON.stringify(_conDeviceId({ accion: 'cerrarTodasLasSesiones', adminAuth: adminAuth }))
                 });
                 const data = await res.json();
                 if (!data.ok) throw new Error(data.error || 'Error desconocido');
@@ -4364,7 +4574,7 @@
             if (!googleScriptUrl) throw new Error('URL no configurada');
             const r = await fetch(googleScriptUrl, {
                 method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify(Object.assign({ auth: _authCred }, body))
+                body: JSON.stringify(_conDeviceId(Object.assign({ auth: _authCred }, body)))
             });
             return r.json();
         }
@@ -5398,7 +5608,7 @@
             try {
                 const res = await fetch(googleScriptUrl, {
                     method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ accion: 'crearIntentoPagoMP', folio: _cobroFolio, tipo: 'prevision', monto: monto, adminAuth: adminAuth })
+                    body: JSON.stringify(_conDeviceId({ accion: 'crearIntentoPagoMP', folio: _cobroFolio, tipo: 'prevision', monto: monto, adminAuth: adminAuth }))
                 });
                 const data = await res.json();
                 if (!data.ok) throw new Error(data.error || 'Error desconocido');
@@ -5416,7 +5626,7 @@
                 try {
                     const res = await fetch(googleScriptUrl, {
                         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                        body: JSON.stringify({ accion: 'consultarIntentoPagoMP', intentId: intentId, adminAuth: adminAuth })
+                        body: JSON.stringify(_conDeviceId({ accion: 'consultarIntentoPagoMP', intentId: intentId, adminAuth: adminAuth }))
                     });
                     const data = await res.json();
                     if (!data.ok) {
