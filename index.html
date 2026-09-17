@@ -2728,6 +2728,20 @@
                     return false;
                 }
                 _actualizarBannerDispositivo(!!postResult.dispositivoPendiente);
+                // Si este dispositivo está pendiente de autorización Y de verdad había
+                // algo esperando subirse (un abono, un contrato nuevo...), avisar SIEMPRE
+                // — incluso en un sync silencioso de fondo — porque quien acaba de
+                // registrar ese abono no tiene forma de saber que no se guardó si el
+                // único aviso es la franja pequeña del menú lateral (fácil de no ver,
+                // sobre todo en celular). Sin esto, un abono cobrado en un dispositivo
+                // sin autorizar se quedaba localmente "procesado con éxito" para siempre,
+                // sin aparecer nunca en Sheets ni en ningún otro equipo.
+                if (postResult.dispositivoPendiente && (paymentsPendientes.length || clientsPendientes.length)) {
+                    showToast('⏳ Este dispositivo no está autorizado todavía — ' +
+                        (paymentsPendientes.length ? paymentsPendientes.length + ' abono(s) ' : '') +
+                        'NO se guardaron en la nube. Pide a un administrador que autorice este equipo desde Configuración.',
+                        'error');
+                }
                 if (postResult.result !== 'success') {
                     throw new Error(postResult.message || 'El script reportó un error al guardar.');
                 }
@@ -4039,7 +4053,7 @@
                     body: JSON.stringify(_conDeviceId({ accion: 'confirmarPagoMP', idPagoMP: idPagoMP, adminAuth: adminAuth }))
                 });
                 const data = await res.json();
-                if (!data.ok) throw new Error(data.error || 'Error desconocido');
+                if (!data.ok) throw new Error(data.error || data.mensaje || 'Error desconocido');
                 showToast('✅ Pago confirmado y abonado al contrato.', 'success');
                 cargarPagosMP();
                 // El servidor ya actualizó el saldo del contrato — se sincroniza para que el
@@ -4085,7 +4099,7 @@
                     body: JSON.stringify(_conDeviceId({ accion: 'descartarPagoMP', idPagoMP: idPagoMP, adminAuth: adminAuth }))
                 });
                 const data = await res.json();
-                if (!data.ok) throw new Error(data.error || 'Error desconocido');
+                if (!data.ok) throw new Error(data.error || data.mensaje || 'Error desconocido');
                 showToast('Pago descartado.', 'success');
                 cargarPagosMP();
             } catch (e) {
