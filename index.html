@@ -3928,7 +3928,12 @@
         // a verificar contra EMPLEADOS, así que no basta con conocer la URL de Apps Script
         // para autorizar equipos o confirmar pagos. Devuelve null si se cancela.
         function pedirAuthAdmin() {
-            const pin = prompt('Ingresa tu PIN de administrador para confirmar esta acción:');
+            const pinCrudo = prompt('Ingresa tu PIN de administrador para confirmar esta acción:');
+            // trim(): el teclado de algunos celulares deja un espacio invisible al final
+            // al cerrar el prompt, lo que hacía fallar la comparación aunque el PIN
+            // tecleado fuera el correcto (el login normal con el teclado numérico de la
+            // app no tiene este problema porque arma el PIN dígito por dígito).
+            const pin = pinCrudo ? pinCrudo.trim() : '';
             if (!pin) return null;
             return { pin: pin };
         }
@@ -4060,8 +4065,18 @@
                 // dashboard y el historial de pagos reflejen el abono nuevo sin recargar la página.
                 syncPendingData();
             } catch (e) {
-                showToast('No se pudo confirmar el pago: ' + e.message, 'error');
+                showToast('No se pudo confirmar el pago: ' + _mensajeErrorAdmin(e.message), 'error');
             }
+        }
+
+        // "No autorizado." del servidor siempre significa lo mismo (el PIN que se tecleó
+        // en el prompt no coincidió con el de ningún administrador activo) — se explica
+        // aquí una sola vez en vez de repetir el texto en cada acción admin-gateada.
+        function _mensajeErrorAdmin(msg) {
+            if (msg === 'No autorizado.') {
+                return 'PIN de administrador incorrecto (revisa que sea el mismo PIN de 4 dígitos con el que inicias sesión).';
+            }
+            return msg;
         }
 
         async function buscarPagoMPManual() {
@@ -4083,7 +4098,7 @@
                 if (input) input.value = '';
                 cargarPagosMP();
             } catch (e) {
-                showToast('No se pudo buscar el pago: ' + e.message, 'error');
+                showToast('No se pudo buscar el pago: ' + _mensajeErrorAdmin(e.message), 'error');
             }
         }
 
@@ -4103,7 +4118,7 @@
                 showToast('Pago descartado.', 'success');
                 cargarPagosMP();
             } catch (e) {
-                showToast('No se pudo descartar el pago: ' + e.message, 'error');
+                showToast('No se pudo descartar el pago: ' + _mensajeErrorAdmin(e.message), 'error');
             }
         }
 
