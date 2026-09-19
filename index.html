@@ -1660,6 +1660,22 @@
             }
             return id;
         }
+
+        // Genera IDs de registro (pagos, empleados) a prueba de colisiones.
+        // Antes se usaba solo `pay-${Date.now()}` (resolución de 1 ms): un
+        // doble-tap en "Abonar", o reintentar el formulario tras un cierre
+        // lento del modal, podía generar el MISMO id para dos abonos
+        // distintos. Como Codigo.gs usa ID_PAGO como llave para no duplicar
+        // abonos al reintentar una sincronización, dos abonos reales con el
+        // mismo ID_PAGO se guardaban como uno solo en la hoja de cálculo —
+        // el segundo desaparecía de la nube (y, tras la siguiente descarga,
+        // del saldo del contrato) aunque siguiera viéndose en ese dispositivo.
+        function generarIdUnico(prefijo) {
+            const sufijo = (window.crypto && crypto.randomUUID)
+                ? crypto.randomUUID()
+                : (Date.now() + '-' + Math.random().toString(16).slice(2));
+            return `${prefijo}-${sufijo}`;
+        }
         // Nombre sugerido la primera vez que este equipo se conecta — el
         // administrador puede renombrarlo desde Configuración → Dispositivos
         // autorizados una vez que reconozca cuál es cuál.
@@ -5051,7 +5067,7 @@
             // Agregar el enganche como un pago al historial de abonos
             if (down > 0) {
                 const autoPay = {
-                    id: `pay-${Date.now()}`,
+                    id: generarIdUnico('pay'),
                     clienteId: folio,
                     monto: down,
                     metodo: 'Efectivo',
@@ -5114,7 +5130,7 @@
             }
 
             const newPay = {
-                id: `pay-${Date.now()}`,
+                id: generarIdUnico('pay'),
                 clienteId: folio,
                 monto: amount,
                 metodo: document.getElementById('p-metodo').value,
@@ -5370,7 +5386,7 @@
                 if (!pendingSyncEmployees.includes(_editingEmployeeId)) pendingSyncEmployees.push(_editingEmployeeId);
             } else {
                 empGuardado = {
-                    id: `emp-${Date.now()}`,
+                    id: generarIdUnico('emp'),
                     nombre, puesto, telefono, usuario,
                     estatus: "Activo",
                     contrasena: contrasenaInput
